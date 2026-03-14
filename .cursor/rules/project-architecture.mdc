@@ -1,0 +1,22 @@
+---
+description: Core architecture and boundaries for SudokuSolverAPI
+alwaysApply: true
+---
+
+# Project Architecture
+
+This project is a Cloudflare Worker REST API that validates and solves sudoku puzzles
+
+Authoritative implementation layout:
+- `src/index.ts`: HTTP routing and request/response shaping only
+- `src/auth.ts`: bearer token auth only
+- `src/sudoku.ts`: solver logic only (no HTTP concerns)
+- `src/validate.ts`: validation analysis and reasons only
+- `tests/*.test.ts`: unit/integration coverage
+
+Rules:
+- Keep routing concerns out of solver/validation modules.
+- Keep solver internals out of `index.ts` handlers.
+- Prefer pure functions and deterministic outputs.
+- Keep TypeScript strict and avoid `any`.
+- Preserve Cloudflare Worker compatibility (no Node-only runtime APIs in `src/*`).

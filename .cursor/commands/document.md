@@ -21,6 +21,13 @@ For each changed file:
   - Use categories: Added, Changed, Fixed, Security, Removed
   - Be concise, user-facing language
 
+- **`.cursor/rules/*`**: Create or update rules that explain the project's architecture, design patterns, and technical guidelines.
+  - Update key technical decisions (languages, frameworks, databases).
+  - Specific design patterns selected for use and their justifications.
+  - Component relationships and critical implementation paths.
+  - **Update these sections thoroughly** with the latest changes. Ensure the information is consistent with the current code.
+  - **Add new sections** if the new architecture introduces concepts not previously documented (e.g., a new cross-cutting concern, a specific new pattern).
+
 ## 4. Documentation Style Rules
 
 ✅ **Concise** - Sacrifice grammar for brevity

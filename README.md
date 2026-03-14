@@ -1,6 +1,6 @@
 # Sudoku Solver API (Cloudflare Worker)
 
-TypeScript REST API for Sudoku solve/hint/validate, modeled after the Python CLI at [wsabol/SudokuSolver](https://github.com/wsabol/SudokuSolver).
+TypeScript REST API for Sudoku solve/hint/validate.
 
 ## Endpoints
 
@@ -94,3 +94,7 @@ Deploy worker:
 ```bash
 npm run deploy
 ```
+
+## External Resources
+
+- CLI Version of this API: [wsabol/SudokuSolver](https://github.com/wsabol/SudokuSolver)

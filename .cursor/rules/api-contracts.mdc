@@ -1,0 +1,29 @@
+---
+description: API endpoint and response contracts for solve, hint, validate
+alwaysApply: true
+---
+
+# API Contracts
+
+Supported endpoints (GET only):
+- `/solve?board=<81-char>`
+- `/hint?board=<81-char>`
+- `/validate?board=<81-char>`
+
+Authentication:
+- Require `Authorization: Bearer <token>` for all endpoints.
+- Return `401` JSON `{ "error": "Unauthorized" }` on auth failure.
+
+Board input contract:
+- Use query param `board`.
+- Accept 81 characters only.
+- Allowed characters: `0-9` and `.`.
+
+Response contract:
+- `/solve`: `{ status: string, board: number[][] }`
+- `/hint`: `{ status: string, move: {row,col,value} | null, message: string, board: number[][] }`
+- `/validate`: `{ valid: boolean, message: string, reasons: ValidationReason[] }`
+
+Error contract:
+- Missing board -> `400` with clear JSON error.
+- Invalid board format/length/chars -> `400` or `valid:false` (for `/validate`) with reasons.

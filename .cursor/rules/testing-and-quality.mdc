@@ -1,0 +1,23 @@
+---
+description: Required testing and quality checks for API and solver changes
+alwaysApply: true
+---
+
+# Testing And Quality
+
+Every non-trivial change must include or update tests in `tests/`.
+
+Baseline checks before finalizing work:
+- `npm run typecheck`
+- `npm test`
+
+Testing expectations:
+- Solver unit tests must verify `solve()` status outcomes.
+- Keep `tests/test-cases.json` as authoritative status fixture data.
+- API tests must cover auth failure and endpoint success paths.
+- Validation tests must assert reason types for invalid boards.
+
+Quality conventions:
+- Keep tests deterministic and fast.
+- Prefer parameterized tests for fixture-driven cases.
+- Do not weaken assertions to make tests pass.

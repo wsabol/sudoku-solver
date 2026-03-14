@@ -1,0 +1,29 @@
+---
+description: Validation reason taxonomy and message conventions
+alwaysApply: true
+---
+
+# Validation Guidelines
+
+`/validate` must provide both:
+- simple summary: `valid`, `message`
+- structured diagnostics: `reasons[]`
+
+Preferred reason types:
+- `duplicate_in_row`
+- `duplicate_in_column`
+- `duplicate_in_box`
+- `invalid_value`
+- `invalid_board_length`
+- `invalid_board_characters`
+- `empty_cell_no_candidates`
+
+Guidelines:
+- `message` should summarize the first actionable reason.
+- Include coordinates (`row`, `col`, `box`) and `value` when relevant.
+- Keep reason names stable for API consumers.
+- Avoid duplicate reason objects for the same issue.
+
+When adding new validation behavior:
+- Add a new reason type only if existing types cannot represent it.
+- Update tests to cover both `message` and `reasons`.
