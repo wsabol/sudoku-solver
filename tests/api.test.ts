@@ -125,6 +125,29 @@ describe("Worker API", () => {
         expect(res.status).toBe(400);
     });
 
+    it("returns move:null and complete status for a solved board on hint", async () => {
+        const completedBoard =
+            "974236158638591742125487936316754289742918563589362417867125394253649871491873625";
+        const req = new Request(`https://example.com/hint?board=${completedBoard}`, {
+            headers: AUTH_HEADER,
+        });
+        const res = await worker.fetch(req, { BEARER_TOKEN: "test-token" });
+        expect(res.status).toBe(200);
+        const payload = (await res.json()) as { status: string; move: null };
+        expect(payload.move).toBeNull();
+        expect(payload.status).toBe("Complete");
+    });
+
+    it("returns 400 for unsolvable board on hint", async () => {
+        const unsolvableBoard =
+            "110010080302607000070000003080070500004000600003050010200000050000705108060040000";
+        const req = new Request(`https://example.com/hint?board=${unsolvableBoard}`, {
+            headers: AUTH_HEADER,
+        });
+        const res = await worker.fetch(req, { BEARER_TOKEN: "test-token" });
+        expect(res.status).toBe(400);
+    });
+
     it("returns invalid characters reason from validate endpoint", async () => {
         const invalidCharsBoard =
             "00001008030260700007000000308007050000400060000305001020000005000070510806004000x";

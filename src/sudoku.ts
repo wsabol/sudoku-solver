@@ -6,11 +6,6 @@ export interface Move {
     value: number;
 }
 
-export interface SolveResult {
-    board: Board;
-    status: string;
-}
-
 const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 function cloneBoard(board: Board): Board {
@@ -135,16 +130,14 @@ export class Sudoku {
             return;
         }
         this.board[row][col] = value;
+        this.calcPossibles();
         if (!this.isValid()) {
             this.board[row][col] = original;
-        } else {
             this.calcPossibles();
         }
     }
 
     isValid(): boolean {
-        this.calcPossibles();
-
         for (let i = 0; i < 9; i += 1) {
             const row = this.getRow(i).filter((v) => v > 0);
             if (row.some((v) => v < 1 || v > 9)) {
@@ -393,8 +386,4 @@ export class Sudoku {
         return 'Invalid Puzzle ("unknown")';
     }
 
-    solveResult(): SolveResult {
-        const status = this.solve();
-        return { status, board: this.toJSONBoard() };
-    }
 }

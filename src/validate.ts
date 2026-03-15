@@ -117,34 +117,18 @@ export function validateBoard(board: Board): ValidationResult {
         }
     }
 
-    let sudoku: Sudoku | null = null;
-    try {
-        sudoku = new Sudoku(board);
-    } catch {
-        return {
-            valid: false,
-            message: reasons[0]?.detail ?? "Invalid board",
-            reasons:
-                reasons.length > 0
-                    ? reasons
-                    : [
-                        {
-                            type: "invalid_board_length",
-                            detail: "Board must be a 9x9 matrix",
-                        },
-                    ],
-        };
-    }
-
-    for (let row = 0; row < 9; row += 1) {
-        for (let col = 0; col < 9; col += 1) {
-            if (board[row][col] === 0 && sudoku.possibles(row, col).length === 0) {
-                pushIfUnique(reasons, {
-                    type: "empty_cell_no_candidates",
-                    detail: `Empty cell at row ${row}, col ${col} has no valid candidates`,
-                    row,
-                    col,
-                });
+    if (reasons.length === 0) {
+        const sudoku = new Sudoku(board);
+        for (let row = 0; row < 9; row += 1) {
+            for (let col = 0; col < 9; col += 1) {
+                if (board[row][col] === 0 && sudoku.possibles(row, col).length === 0) {
+                    pushIfUnique(reasons, {
+                        type: "empty_cell_no_candidates",
+                        detail: `Empty cell at row ${row}, col ${col} has no valid candidates`,
+                        row,
+                        col,
+                    });
+                }
             }
         }
     }

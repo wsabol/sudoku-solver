@@ -69,4 +69,27 @@ describe("Validation", () => {
         expect(result.valid).toBe(false);
         expect(result.reasons.some((r) => r.type === "invalid_value")).toBe(true);
     });
+
+    it("returns valid for a correct board", () => {
+        const result = validateBoard(parseBoardString(BOARD));
+        expect(result.valid).toBe(true);
+        expect(result.reasons).toHaveLength(0);
+        expect(result.message).toBe("Valid");
+    });
+
+    it("flags empty_cell_no_candidates for unsolvable board", () => {
+        const unsolvable =
+            "..9.287..8.6..4..5..3.....46.........2.71345.........23.....5..9..4..8.7..125.3..";
+        const result = validateBoard(parseBoardString(unsolvable));
+        expect(result.valid).toBe(false);
+        expect(result.reasons.some((r) => r.type === "empty_cell_no_candidates")).toBe(true);
+    });
+
+    it("does not emit empty_cell_no_candidates when board has duplicates", () => {
+        const invalidBoard =
+            "110010080302607000070000003080070500004000600003050010200000050000705108060040000";
+        const result = validateBoard(parseBoardString(invalidBoard));
+        expect(result.valid).toBe(false);
+        expect(result.reasons.every((r) => r.type !== "empty_cell_no_candidates")).toBe(true);
+    });
 });

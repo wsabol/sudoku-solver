@@ -1,4 +1,4 @@
-import { Sudoku, parseBoardString } from "./sudoku";
+import { Sudoku, parseBoardString, type Board } from "./sudoku";
 import { validateBoard } from "./validate";
 
 function badRequest(error: string, details?: string): Response {
@@ -22,19 +22,25 @@ function parseBoardFromQuery(request: Request): { board?: string; error?: Respon
     return { board };
 }
 
-function solveRequest(request: Request) {
-    const parsed = parseBoardFromQuery(request);
-    if (parsed.error || !parsed.board) {
-        return parsed.error ?? badRequest("Invalid board format");
+function parseBoard(request: Request): { parsed?: Board; error?: Response } {
+    const { board, error } = parseBoardFromQuery(request);
+    if (error || !board) {
+        return { error: error ?? badRequest("Invalid board format") };
     }
-    let board;
     try {
-        board = parseBoardString(parsed.board);
+        return { parsed: parseBoardString(board) };
     } catch (err) {
-        return badRequest("Invalid board format", (err as Error).message);
+        return { error: badRequest("Invalid board format", (err as Error).message) };
+    }
+}
+
+function solveRequest(request: Request) {
+    const { parsed, error } = parseBoard(request);
+    if (error || !parsed) {
+        return error ?? badRequest("Invalid board format");
     }
 
-    const sudoku = new Sudoku(board);
+    const sudoku = new Sudoku(parsed);
     const status = sudoku.solve();
     return Response.json({
         status,
@@ -43,18 +49,12 @@ function solveRequest(request: Request) {
 }
 
 function hintRequest(request: Request) {
-    const parsed = parseBoardFromQuery(request);
-    if (parsed.error || !parsed.board) {
-        return parsed.error ?? badRequest("Invalid board format");
-    }
-    let board;
-    try {
-        board = parseBoardString(parsed.board);
-    } catch (err) {
-        return badRequest("Invalid board format", (err as Error).message);
+    const { parsed, error } = parseBoard(request);
+    if (error || !parsed) {
+        return error ?? badRequest("Invalid board format");
     }
 
-    const sudoku = new Sudoku(board);
+    const sudoku = new Sudoku(parsed);
     if (!sudoku.isValid()) {
         return badRequest('Invalid Puzzle ("no solution")');
     }
