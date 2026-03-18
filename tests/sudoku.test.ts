@@ -1208,6 +1208,36 @@ describe("SudokuSolver", () => {
             expect(move!.value).toBeGreaterThanOrEqual(1);
         });
 
+        it("includes algorithm on every returned move", () => {
+            const s = new SudokuSolver(BOARD);
+            const move = s.getNextMove();
+            expect(move).not.toBeNull();
+            expect(move!.algorithm).toMatch(/^(Naked Singles|Hidden Singles)$/);
+        });
+
+        it("returns algorithm Naked Singles when a cell has exactly one candidate", () => {
+            // All cells filled except one — that cell must be a naked single
+            const almostSolved = parseBoardString(SOLVED_BOARD);
+            almostSolved[0][0] = 0;
+            const s = new SudokuSolver(almostSolved);
+            const move = s.getNextMove();
+            expect(move).not.toBeNull();
+            expect(move!.algorithm).toBe("Naked Singles");
+        });
+
+        it("returns algorithm Hidden Singles once all naked singles are exhausted", () => {
+            const s = new SudokuSolver(BOARD);
+            // Drain all naked singles first
+            let move = s.getNextMove();
+            while (move && move.algorithm === "Naked Singles") {
+                s.setSquareValue(move.row, move.col, move.value);
+                move = s.getNextMove();
+            }
+            // BOARD requires hidden singles to progress beyond naked singles
+            expect(move).not.toBeNull();
+            expect(move!.algorithm).toBe("Hidden Singles");
+        });
+
         it("returns null for a complete board", () => {
             const s = new SudokuSolver(SOLVED_BOARD);
             expect(s.getNextMove()).toBeNull();

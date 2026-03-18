@@ -52,3 +52,9 @@ export function duplicateValues(values: number[]): number[] {
     }
     return [...counts.entries()].filter(([, count]) => count > 1).map(([value]) => value);
 }
+
+const LABELS = 'ABCDEFGHJ';
+
+export function rowLetter(row: number): string {
+    return LABELS[row];
+}

@@ -3,11 +3,16 @@ import { ValidationReason, ValidationResult, pushUniqueReason } from "./validate
 
 export type Board = number[][];
 
+export type Algorithm = "Naked Singles" | "Hidden Singles";
+
 export interface Move {
     row: number;
     col: number;
     value: number;
+    algorithm: Algorithm;
 }
+
+const ALGORITHMS: Algorithm[] = ["Naked Singles", "Hidden Singles"];
 
 export type DifficultyLevel = "Easy" | "Medium" | "Hard" | "Diabolical" | "Impossible";
 
@@ -174,7 +179,6 @@ export default class SudokuSolver {
         return "Impossible";
     }
 
-    // TODO: Add algorithm to result
     // TODO: Add advanced algorithms to solve the puzzle
     // TODO: Row to Letter
     getNextMove(): Move | null {
@@ -182,28 +186,9 @@ export default class SudokuSolver {
             return null;
         }
 
-        const naked = this.findNakedSingle();
-        if (naked) {
-            return naked;
-        }
-
-        for (let row = 0; row < 9; row += 1) {
-            const move = this.findHiddenSingleInRow(row);
-            if (move) {
-                return move;
-            }
-        }
-        for (let col = 0; col < 9; col += 1) {
-            const move = this.findHiddenSingleInCol(col);
-            if (move) {
-                return move;
-            }
-        }
-        for (let box = 0; box < 9; box += 1) {
-            const move = this.findHiddenSingleInBox(box);
-            if (move) {
-                return move;
-            }
+        for (const algorithm of ALGORITHMS) {
+            const move = this.findNextPlacement(algorithm);
+            if (move) return move;
         }
 
         return null;
@@ -293,7 +278,7 @@ export default class SudokuSolver {
                 if (this.board[row][col] === 0) {
                     const p = this.possiblesGrid[row][col];
                     if (p.length === 1) {
-                        return { row, col, value: p[0] };
+                        return { row, col, value: p[0], algorithm: "Naked Singles" };
                     }
                 }
             }
@@ -310,7 +295,7 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { row, col: candidates[0], value };
+                return { row, col: candidates[0], value, algorithm: "Hidden Singles" };
             }
         }
         return null;
@@ -325,7 +310,7 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { row: candidates[0], col, value };
+                return { row: candidates[0], col, value, algorithm: "Hidden Singles" };
             }
         }
         return null;
@@ -341,10 +326,35 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { row: candidates[0].row, col: candidates[0].col, value };
+                return { row: candidates[0].row, col: candidates[0].col, value, algorithm: "Hidden Singles" };
             }
         }
         return null;
+    }
+
+    private findHiddenSingle(): Move | null {
+        for (let row = 0; row < 9; row += 1) {
+            const move = this.findHiddenSingleInRow(row);
+            if (move) return move;
+        }
+        for (let col = 0; col < 9; col += 1) {
+            const move = this.findHiddenSingleInCol(col);
+            if (move) return move;
+        }
+        for (let box = 0; box < 9; box += 1) {
+            const move = this.findHiddenSingleInBox(box);
+            if (move) return move;
+        }
+        return null;
+    }
+
+    private findNextPlacement(algorithm: Algorithm): Move | null {
+        switch (algorithm) {
+            case "Naked Singles":
+                return this.findNakedSingle();
+            case "Hidden Singles":
+                return this.findHiddenSingle();
+        }
     }
 
     private simpleSolve(): void {

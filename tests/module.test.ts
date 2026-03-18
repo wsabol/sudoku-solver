@@ -57,6 +57,7 @@ describe("Node module API", () => {
             expect(result.status).toBe("In progress");
             expect(result.move).not.toBeNull();
             expect(result.message).toMatch(/^Place \d+ in row \d+ column \d+$/);
+            expect(result.move!.algorithm).toMatch(/^(Naked Singles|Hidden Singles)$/);
         });
 
         it("returns a move for a matrix board input", () => {
