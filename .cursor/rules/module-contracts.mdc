@@ -6,10 +6,9 @@ alwaysApply: true
 # Module Contracts
 
 Public exports from `src/index.ts`:
-- `solve(boardInput: string | Board): SolveResult`
-- `hint(boardInput: string | Board): HintResult`
-- `validate(boardInput: string | Board): ValidationResult`
-- Types: `Board`, `Move`, `ValidationReason`, `ValidationResult`
+- `default Sudoku` object with: `solve`, `nextMove`, `validate`, `describe`
+- Named: `SudokuSolver` class
+- Types: `Board`, `Move`, `ValidationReason`, `ValidationResult`, `SolveResult`, `MoveResult`, `MoveStatus`, `DescribeResult`
 
 Board input contract:
 - Board string must be exactly 81 characters.
@@ -17,18 +16,23 @@ Board input contract:
 - `Board` matrix input must be `9x9` with integer cell values in `0..9`.
 
 Output contract:
-- `solve()` returns:
-  - `status: string`
-  - `board: number[][]`
-- `hint()` returns:
-  - `status: "Complete" | "In progress" | "Invalid"`
-  - `move: { row, col, value } | null`
-  - `board: number[][]`
-  - `message: string`
-- `validate()` returns:
-  - `valid: boolean`
-  - `message: string`
-  - `reasons: ValidationReason[]`
+- `solve()` returns `SolveResult`:
+ - `isValid: boolean`
+ - `board: number[][]`
+- `nextMove()` returns `MoveResult`:
+ - `status: "Complete" | "In progress" | "Invalid"`
+ - `move: { row, col, value } | null`
+ - `message: string`
+- `validate()` returns `ValidationResult`:
+ - `isValid: boolean`
+ - `message: string`
+ - `reasons: ValidationReason[]`
+- `describe()` returns `DescribeResult`:
+ - `isValid: boolean`
+ - `isComplete: boolean`
+ - `message: string`
+ - `difficulty: "Easy" | "Medium" | "Hard" | "Diabolical" | "Impossible"`
+ - `solutions: number`
 
 Validation reason taxonomy:
 - `duplicate_in_row`
@@ -38,6 +42,7 @@ Validation reason taxonomy:
 - `invalid_board_length`
 - `invalid_board_characters`
 - `empty_cell_no_candidates`
+- `too_many_empty_cells`
 
 Stability rules:
 - Treat exported function signatures and reason type names as semver-sensitive.

@@ -13,7 +13,7 @@ export type DifficultyLevel = "Easy" | "Medium" | "Hard" | "Diabolical" | "Impos
 
 const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-export class SudokuSolver {
+export default class SudokuSolver {
     private board: Board;
     private possiblesGrid: number[][][];
 

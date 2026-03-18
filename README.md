@@ -1,6 +1,6 @@
 # Sudoku Solver (Node Module)
 
-TypeScript module for Sudoku solve, hint, and validate operations.
+TypeScript module for Sudoku solve, next move, describe, and validate operations.
 
 ## Install
 
@@ -19,27 +19,32 @@ Build output is written to `dist/`.
 ## Usage
 
 ```ts
-import { solve, hint, validate } from "sudoku-solver";
+import Sudoku from "sudoku-solver";
 
 const board =
     "000010080302607000070000003080070500004000600003050010200000050000705108060040000";
 
-const solved = solve(board);
-console.log(solved.status); // "Unique Solution"
-console.log(solved.board); // number[][]
+const solved = Sudoku.solve(board);
+console.log(solved.isValid); // true
+console.log(solved.board);   // number[][]
 
-const next = hint(board);
-console.log(next.message); // e.g. "place 4 in row 1 column 3"
-console.log(next.move); // { row, col, value } | null
+const next = Sudoku.nextMove(board);
+console.log(next.status);  // "In progress"
+console.log(next.message); // e.g. "Place 4 in row 1 column 3"
+console.log(next.move);    // { row, col, value } | null
 
-const check = validate(board);
-console.log(check.valid); // true/false
-console.log(check.reasons); // ValidationReason[]
+const check = Sudoku.validate(board);
+console.log(check.isValid);  // true/false
+console.log(check.reasons);  // ValidationReason[]
+
+const info = Sudoku.describe(board);
+console.log(info.difficulty); // "Easy" | "Medium" | "Hard" | "Diabolical" | "Impossible"
+console.log(info.solutions);  // 0 | 1
 ```
 
 ## API
 
-### `solve(boardInput)`
+### `Sudoku.solve(boardInput)`
 
 Accepts `string | number[][]`.
 
@@ -47,18 +52,14 @@ Returns:
 
 ```ts
 {
-    status: string;
+    isValid: boolean;
     board: number[][];
 }
 ```
 
-Possible status values include:
-- `"Unique Solution"`
-- `"Invalid Puzzle (\"no solution\")"`
-- `"Invalid Puzzle (\"no unique solution\")"`
-- `"Invalid Puzzle (\"not enough givens\" / \"multiple solutions\")"`
+`isValid` is `false` when the board is structurally invalid or has no solution.
 
-### `hint(boardInput)`
+### `Sudoku.nextMove(boardInput)`
 
 Accepts `string | number[][]`.
 
@@ -68,7 +69,6 @@ Returns:
 {
     status: "Complete" | "In progress" | "Invalid";
     move: { row: number; col: number; value: number } | null;
-    board: number[][];
     message: string;
 }
 ```
@@ -77,7 +77,7 @@ Notes:
 - `move` is `null` when the board is complete or invalid.
 - `message` uses 1-indexed row/column phrasing.
 
-### `validate(boardInput)`
+### `Sudoku.validate(boardInput)`
 
 Accepts `string | number[][]`.
 
@@ -85,20 +85,29 @@ Returns:
 
 ```ts
 {
-    valid: boolean;
+    isValid: boolean;
     message: string;
     reasons: ValidationReason[];
 }
 ```
 
-Reason types:
-- `duplicate_in_row`
-- `duplicate_in_column`
-- `duplicate_in_box`
-- `invalid_value`
-- `invalid_board_length`
-- `invalid_board_characters`
-- `empty_cell_no_candidates`
+### `Sudoku.describe(boardInput)`
+
+Accepts `string | number[][]`.
+
+Returns:
+
+```ts
+{
+    isValid: boolean;
+    isComplete: boolean;
+    message: string;
+    difficulty: "Easy" | "Medium" | "Hard" | "Diabolical" | "Impossible";
+    solutions: number;
+}
+```
+
+`difficulty` is derived from empty cell count. `solutions` is `0` when the board is invalid/unsolvable, `1` when a unique solution exists.
 
 ## Development
 

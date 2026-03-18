@@ -8,21 +8,23 @@ alwaysApply: true
 This project is a TypeScript Node module that validates and solves sudoku puzzles.
 
 Authoritative implementation layout:
-- `src/index.ts`: public module API only (`solve`, `hint`, `validate`) and exported types.
-- `src/sudoku.ts`: core board parsing, solving, move generation, and puzzle status logic.
-- `src/validate.ts`: board diagnostics and stable `ValidationReason` taxonomy.
+- `src/index.ts`: public module API only (`solve`, `nextMove`, `validate`, `describe`) and exported types.
+- `src/sudokuSolver.ts`: `SudokuSolver` class — board parsing, solving (naked/hidden singles), move generation, validation, difficulty, and puzzle status logic.
+- `src/utils.ts`: pure board utilities (`cloneBoard`, `assertBoardShape`, `parseBoardString`, `duplicateValues`).
+- `src/validate.ts`: `ValidationReason` taxonomy, `ValidationResult` type, and helper factories (`invalidBoardLength`, `invalidBoardCharacters`, `pushUniqueReason`).
 - `tests/sudoku.test.ts`: solver/validator internals and fixture-driven status checks.
 - `tests/module.test.ts`: module-level API behavior checks.
-- `tests/test-cases.json`: authoritative fixture list for expected solve statuses.
 
 Rules:
 - Keep `src/index.ts` thin: orchestrate input parsing and result shaping only.
-- Keep solver internals in `src/sudoku.ts`; avoid duplicating solve logic in API wrappers.
+- Keep solver internals in `src/sudokuSolver.ts`; avoid duplicating solve logic in API wrappers.
 - Keep validation internals in `src/validate.ts`; preserve stable reason type names.
+- Keep board utilities in `src/utils.ts`; keep them pure and side-effect free.
 - Prefer pure functions and deterministic outputs.
 - Keep TypeScript strict and avoid `any`.
 
 Critical module contracts:
-- `solve(boardInput)` returns `{ status, board }`; never throws for valid board shape/value domains.
-- `hint(boardInput)` returns `{ status, move, board, message }` where status is `"Complete" | "In progress" | "Invalid"`.
-- `validate(boardInput)` returns `{ valid, message, reasons }` and includes `invalid_board_length` / `invalid_board_characters` for invalid board strings.
+- `solve(boardInput)` returns `{ isValid, board }`; never throws for valid board shape/value domains.
+- `nextMove(boardInput)` returns `{ status, move, message }` where status is `"Complete" | "In progress" | "Invalid"`.
+- `validate(boardInput)` returns `{ isValid, message, reasons }` and includes `invalid_board_length` / `invalid_board_characters` for invalid board strings.
+- `describe(boardInput)` returns `{ isValid, isComplete, message, difficulty, solutions }`.

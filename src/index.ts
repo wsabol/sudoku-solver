@@ -1,4 +1,4 @@
-import { SudokuSolver, type Board, type Move } from "./sudokuSolver";
+import SudokuSolver, { type Board, type Move } from "./sudokuSolver";
 import { invalidBoardLength, invalidBoardCharacters, type ValidationReason, type ValidationResult } from "./validate";
 
 interface SolveResult {
@@ -117,6 +117,10 @@ const Sudoku = {
     validate: validate,
     describe: describeBoard,
 };
+
+export {
+    SudokuSolver
+}
 
 // main exports for the module
 export type {

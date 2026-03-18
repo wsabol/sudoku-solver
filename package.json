@@ -1,7 +1,7 @@
 {
     "name": "sudoku-solver",
     "version": "1.0.0",
-    "description": "TypeScript Sudoku solver module with solve, hint, and validate APIs.",
+    "description": "TypeScript Sudoku solver module with solve, next move, describe, and validate APIs.",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
@@ -24,6 +24,7 @@
     "devDependencies": {
         "@types/node": "^25.5.0",
         "@vitest/coverage-v8": "^4.1.0",
+        "tsx": "^4.21.0",
         "typescript": "^5.9.3",
         "vitest": "^4.1.0"
     }

@@ -12,10 +12,8 @@ Baseline checks before finalizing work:
 - `npm test`
 
 Testing expectations:
-- Solver unit tests must verify `solve()` status outcomes.
-- Keep `tests/test-cases.json` as authoritative status fixture data.
-- Module API tests must cover `solve`, `hint`, and `validate` success/edge paths.
-- `hint` tests should cover `"In progress"`, `"Complete"`, and `"Invalid"` statuses.
+- Solver unit tests must verify `solve()` status outcomes and board solutions against `solveAnswers`.
+- Module API tests must cover `solve`, `nextMove`, and `validate` success/edge paths.
 - Validation tests must assert reason types for invalid boards.
 - Validation tests should cover string-specific failures: `invalid_board_length` and `invalid_board_characters`.
 

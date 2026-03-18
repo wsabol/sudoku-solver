@@ -17,6 +17,7 @@ Preferred reason types:
 - `invalid_board_length`
 - `invalid_board_characters`
 - `empty_cell_no_candidates`
+- `too_many_empty_cells`
 
 Guidelines:
 - `message` should summarize the first actionable reason.
