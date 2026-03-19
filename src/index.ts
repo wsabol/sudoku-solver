@@ -1,4 +1,4 @@
-import SudokuSolver, { type Algorithm, type Board, type Move } from "./sudokuSolver";
+import SudokuSolver, { type Algorithm, type Board, type Move, type PlacementMove, type EliminationMove } from "./sudokuSolver";
 import { invalidBoardLength, invalidBoardCharacters, type ValidationReason, type ValidationResult } from "./validate";
 
 interface SolveResult {
@@ -44,12 +44,16 @@ function nextMove(boardInput: string | Board): MoveResult {
     }
 
     const move = sudoku.getNextMove();
-    const message = move
-        ? `Place ${move.value} in r${move.row + 1}c${move.col + 1}`
-        : "No more moves";
-
-    if (move) {
+    let message: string;
+    if (!move) {
+        message = "No more moves";
+    } else if (move.type === "placement") {
+        message = `Place ${move.value} in r${move.row + 1}c${move.col + 1} (${move.algorithm})`;
         sudoku.setSquareValue(move.row, move.col, move.value);
+    } else {
+        const digit = move.eliminations[0]!.value;
+        message = `Eliminate ${digit} from ${move.eliminations.length} cell(s) (${move.algorithm})`;
+        sudoku.applyElimination(move);
     }
 
     return {
@@ -127,6 +131,8 @@ export type {
     Algorithm,
     Board,
     Move,
+    PlacementMove,
+    EliminationMove,
     ValidationReason,
     ValidationResult,
     SolveResult,

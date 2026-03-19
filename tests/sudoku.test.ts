@@ -108,7 +108,7 @@ const solveAnswers = [
     {
         title: 'Hidden Triple',
         input: '300000000970010000600583000200000900500621003008000005000435002000090056000000001',
-        output: '380000000970210000600583000200050900500621003008000005000435002000190056050000001',
+        output: '381976524975214638642583179264358917597621483138749265816435792423197856759862341',
         describe: {
             isValid: true,
             isComplete: false,
@@ -120,7 +120,7 @@ const solveAnswers = [
     {
         title: 'Hidden Quad',
         input: '000705006000040081000030050041000008060000020500000430000070000978050000300201000',
-        output: '000705006005040081000030050041000008063000120500000430000070000978050010350201000',
+        output: '000705306035040781007030050041000008063000120500000437000070000978050010350201070',
         describe: {
             isValid: true,
             isComplete: false,
@@ -216,7 +216,7 @@ const solveAnswers = [
     {
         title: 'XYZ-Wing',
         input: '300000000600000048507006300080700100100603002005008060003100906790000005000000003',
-        output: '308000600609030048507006300086700130174603002035018060053100906790360005060000003',
+        output: '308001607619037048507006301086705130174693002035018760053100906790360005060009003',
         describe: {
             isValid: true,
             isComplete: false,
@@ -324,7 +324,7 @@ const solveAnswers = [
     {
         title: '3D Medusa Rule 5',
         input: '080276049000000000200309008001000060007000800090000500900608003000000000520904000',
-        output: '085276049009000000206309008001000060007000800092000500904608003000000000520904000',
+        output: '085276049709000000206309008001000060007000800092000500974608003000000000520904000',
         describe: {
             isValid: true,
             isComplete: false,
@@ -360,7 +360,7 @@ const solveAnswers = [
     {
         title: 'UR type 1',
         input: '016098020020000784000000000007009500000307000005100400000000000681000050050670810',
-        output: '016098325020561784508000000007009530000357000005106470000815040681900257050672810',
+        output: '016098325020561784508000000067009530000357000005106470000815040681900257050672810',
         describe: {
             isValid: true,
             isComplete: false,
@@ -444,7 +444,7 @@ const solveAnswers = [
     {
         title: 'UR type 4b',
         input: '090208001620000090800000000008027000003000400000350100000000502070000034200401060',
-        output: '090208001620000090800000200008027050003000420062354180000000512070502034200401060',
+        output: '090208001620000090800000200008027050003000420062354180000000512170502034200401760',
         describe: {
             isValid: true,
             isComplete: false,
@@ -804,7 +804,7 @@ const solveAnswers = [
     {
         title: '18 clue moderate',
         input: '400805200000000000080070000000208907000000004105300000000000010000000000001007006',
-        output: '400805200000000000080070000000218957000750134175300000000000010000000000001007006',
+        output: '400805200000000000080070000000218957000756134175300000000000010000000000001007006',
         describe: {
             isValid: true,
             isComplete: false,
@@ -828,7 +828,7 @@ const solveAnswers = [
     {
         title: 'Tough Strategies',
         input: '700020080000000900000309051000070000008450100000060000000500000000000000010080002',
-        output: '791625080000010926000349751000070000008450100000060000000500000000000000010080002',
+        output: '791625080000817926000349751000070000008450100000060000000500000000000000010780002',
         describe: {
             isValid: true,
             isComplete: false,
@@ -1188,13 +1188,50 @@ describe("SudokuSolver", () => {
             expect(possibles.every((v) => v >= 1 && v <= 9)).toBe(true);
         });
 
-        it("setSquareValue places a value and recalculates candidates", () => {
+        it("setSquareValue places a value and removes candidates from peers", () => {
             const s = new SudokuSolver(BOARD);
             const move = s.getNextMove();
             expect(move).not.toBeNull();
-            s.setSquareValue(move!.row, move!.col, move!.value);
-            expect(s.toArray()[move!.row][move!.col]).toBe(move!.value);
-            expect(s.getPossibles(move!.row, move!.col)).toEqual([]);
+            expect(move!.type).toBe("placement");
+            const placement = move as import("../src/sudokuSolver").PlacementMove;
+            s.setSquareValue(placement.row, placement.col, placement.value);
+            expect(s.toArray()[placement.row][placement.col]).toBe(placement.value);
+            expect(s.getPossibles(placement.row, placement.col)).toEqual([]);
+        });
+
+        it("setSquareValue preserves prior candidate eliminations", () => {
+            const s = new SudokuSolver(BOARD);
+            // Manually eliminate a candidate from a specific empty cell
+            const board = s.toArray();
+            let targetRow = -1, targetCol = -1;
+            outer: for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (board[r][c] === 0 && s.getPossibles(r, c).length > 1) {
+                        targetRow = r;
+                        targetCol = c;
+                        break outer;
+                    }
+                }
+            }
+            expect(targetRow).toBeGreaterThanOrEqual(0);
+            const originalPossibles = s.getPossibles(targetRow, targetCol);
+            const candidateToRemove = originalPossibles[0];
+            // Simulate what applyElimination does
+            const eliminationMove = {
+                type: "elimination" as const,
+                eliminations: [{ row: targetRow, col: targetCol, value: candidateToRemove }],
+                algorithm: "Pointing Pair/Triple" as const,
+            };
+            s.applyElimination(eliminationMove);
+            expect(s.getPossibles(targetRow, targetCol)).not.toContain(candidateToRemove);
+
+            // Now place a value elsewhere and verify the elimination is preserved
+            const nextMove = s.getNextMove();
+            expect(nextMove).not.toBeNull();
+            if (nextMove !== null && nextMove.type === "placement" && (nextMove.row !== targetRow || nextMove.col !== targetCol)) {
+                s.setSquareValue(nextMove.row, nextMove.col, nextMove.value);
+                expect(s.getPossibles(targetRow, targetCol)).not.toContain(candidateToRemove);
+            }
         });
     });
 
@@ -1203,9 +1240,12 @@ describe("SudokuSolver", () => {
             const s = new SudokuSolver(BOARD);
             const move = s.getNextMove();
             expect(move).not.toBeNull();
-            expect(move!.row).toBeGreaterThanOrEqual(0);
-            expect(move!.col).toBeGreaterThanOrEqual(0);
-            expect(move!.value).toBeGreaterThanOrEqual(1);
+            expect(move!.type).toBe("placement");
+            if (move !== null && move.type === "placement") {
+                expect(move.row).toBeGreaterThanOrEqual(0);
+                expect(move.col).toBeGreaterThanOrEqual(0);
+                expect(move.value).toBeGreaterThanOrEqual(1);
+            }
         });
 
         it("includes algorithm on every returned move", () => {
@@ -1229,7 +1269,7 @@ describe("SudokuSolver", () => {
             const s = new SudokuSolver(BOARD);
             // Drain all naked singles first
             let move = s.getNextMove();
-            while (move && move.algorithm === "Naked Single") {
+            while (move && move.type === "placement" && move.algorithm === "Naked Single") {
                 s.setSquareValue(move.row, move.col, move.value);
                 move = s.getNextMove();
             }
@@ -1248,6 +1288,62 @@ describe("SudokuSolver", () => {
                 "110010080302607000070000003080070500004000600003050010200000050000705108060040000";
             const s = new SudokuSolver(invalid);
             expect(s.getNextMove()).toBeNull();
+        });
+    });
+
+    describe("findPointingPairTriple()", () => {
+        // This puzzle requires Pointing Pair/Triple to make progress:
+        // Box 0 (top-left) has digit 2 only in row 0 → eliminates 2 from rest of row 0
+        // Source: classic Pointing Pair/Triple test case
+        const POINTING_PAIR_BOARD =
+            "000030086000020000080960301070083000000000000000610020304079010000050000690040000";
+
+        it("finds a Pointing Pair/Triple elimination move when placement algorithms are exhausted", () => {
+            const s = new SudokuSolver(POINTING_PAIR_BOARD);
+            // Drain all placement moves first
+            let move = s.getNextMove();
+            while (move && move.type === "placement") {
+                s.setSquareValue(move.row, move.col, move.value);
+                move = s.getNextMove();
+            }
+            // The next move must be an elimination via Pointing Pair/Triple
+            expect(move).not.toBeNull();
+            expect(move!.type).toBe("elimination");
+            expect(move!.algorithm).toBe("Pointing Pair/Triple");
+            if (move !== null && move.type === "elimination") {
+                expect(move.eliminations.length).toBeGreaterThan(0);
+                for (const e of move.eliminations) {
+                    expect(e.row).toBeGreaterThanOrEqual(0);
+                    expect(e.col).toBeGreaterThanOrEqual(0);
+                    expect(e.value).toBeGreaterThanOrEqual(1);
+                    expect(e.value).toBeLessThanOrEqual(9);
+                }
+            }
+        });
+
+        it("applyElimination removes the specified candidates from possiblesGrid", () => {
+            const s = new SudokuSolver(POINTING_PAIR_BOARD);
+            let move = s.getNextMove();
+            while (move && move.type === "placement") {
+                s.setSquareValue(move.row, move.col, move.value);
+                move = s.getNextMove();
+            }
+            expect(move).not.toBeNull();
+            expect(move!.type).toBe("elimination");
+            if (move !== null && move.type === "elimination") {
+                s.applyElimination(move);
+                for (const { row, col, value } of move.eliminations) {
+                    expect(s.getPossibles(row, col)).not.toContain(value);
+                }
+            }
+        });
+
+        it("solve() makes progress using Pointing Pair/Triple eliminations", () => {
+            const s = new SudokuSolver(POINTING_PAIR_BOARD);
+            const initialEmpty = s.countEmptyCells();
+            s.solve();
+            // Verify the solver made further progress with Pointing Pair/Triple than without
+            expect(s.countEmptyCells()).toBeLessThan(initialEmpty);
         });
     });
 

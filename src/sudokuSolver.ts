@@ -3,21 +3,30 @@ import { ValidationReason, ValidationResult, pushUniqueReason } from "./validate
 
 export type Board = number[][];
 
-export type Algorithm = "Full House" | "Naked Single" | "Hidden Single";
+export type Algorithm = "Full House" | "Naked Single" | "Hidden Single" | "Pointing Pair/Triple";
 
-export interface Move {
+export interface PlacementMove {
+    type: "placement";
     row: number;
     col: number;
     value: number;
     algorithm: Algorithm;
 }
 
+export interface EliminationMove {
+    type: "elimination";
+    eliminations: Array<{ row: number; col: number; value: number }>;
+    algorithm: Algorithm;
+}
+
+export type Move = PlacementMove | EliminationMove;
+
 export type DifficultyLevel = "Easy" | "Medium" | "Hard" | "Diabolical" | "Impossible";
 
 const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export default class SudokuSolver {
-    static readonly ALGORITHMS: Algorithm[] = ["Full House", "Naked Single", "Hidden Single"];
+    static readonly ALGORITHMS: Algorithm[] = ["Full House", "Naked Single", "Hidden Single", "Pointing Pair/Triple"];
 
     private board: Board;
     private possiblesGrid: number[][][];
@@ -48,7 +57,27 @@ export default class SudokuSolver {
 
     setSquareValue(row: number, col: number, value: number): void {
         this.board[row][col] = value;
-        this.calcPossibles();
+        this.possiblesGrid[row][col] = [];
+        const ibox = this.boxIndex(row, col);
+        const startRow = Math.floor(ibox / 3) * 3;
+        const startCol = (ibox % 3) * 3;
+        for (let c = 0; c < 9; c++) {
+            this.possiblesGrid[row][c] = this.possiblesGrid[row][c].filter((v) => v !== value);
+        }
+        for (let r = 0; r < 9; r++) {
+            this.possiblesGrid[r][col] = this.possiblesGrid[r][col].filter((v) => v !== value);
+        }
+        for (let r = startRow; r < startRow + 3; r++) {
+            for (let c = startCol; c < startCol + 3; c++) {
+                this.possiblesGrid[r][c] = this.possiblesGrid[r][c].filter((v) => v !== value);
+            }
+        }
+    }
+
+    applyElimination(move: EliminationMove): void {
+        for (const { row, col, value } of move.eliminations) {
+            this.possiblesGrid[row][col] = this.possiblesGrid[row][col].filter((v) => v !== value);
+        }
     }
 
     isComplete(): boolean {
@@ -192,7 +221,11 @@ export default class SudokuSolver {
 
         let move = this.findBestMove();
         while (move) {
-            this.setSquareValue(move.row, move.col, move.value);
+            if (move.type === "placement") {
+                this.setSquareValue(move.row, move.col, move.value);
+            } else {
+                this.applyElimination(move);
+            }
             move = this.findBestMove();
         }
 
@@ -263,19 +296,21 @@ export default class SudokuSolver {
     private findNextPlacement(algorithm: Algorithm): Move | null {
         switch (algorithm) {
             case "Full House":
-            case "Naked Single":
-                let move = this.findNakedSingle();
+            case "Naked Single": {
+                const move = this.findNakedSingle();
                 if (algorithm === "Full House") {
                     return move?.algorithm === "Full House" ? move : null;
                 }
                 return move;
+            }
             case "Hidden Single":
                 return this.findHiddenSingle();
+            case "Pointing Pair/Triple":
+                return this.findPointingPairTriple();
         }
-        return null;
     }
 
-    private findNakedSingle(): Move | null {
+    private findNakedSingle(): PlacementMove | null {
         for (let row = 0; row < 9; row++) {
             for (let col = 0; col < 9; col++) {
                 if (this.board[row][col] === 0) {
@@ -298,7 +333,7 @@ export default class SudokuSolver {
                             algo = "Full House";
                         }
 
-                        return { row, col, value: placeValue, algorithm: algo };
+                        return { type: "placement", row, col, value: placeValue, algorithm: algo };
                     }
                 }
             }
@@ -306,7 +341,7 @@ export default class SudokuSolver {
         return null;
     }
 
-    private findHiddenSingleInRow(row: number): Move | null {
+    private findHiddenSingleInRow(row: number): PlacementMove | null {
         for (let value = 1; value <= 9; value++) {
             const candidates: number[] = [];
             for (let col = 0; col < 9; col++) {
@@ -315,13 +350,13 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { row, col: candidates[0], value, algorithm: "Hidden Single" };
+                return { type: "placement", row, col: candidates[0], value, algorithm: "Hidden Single" };
             }
         }
         return null;
     }
 
-    private findHiddenSingleInCol(col: number): Move | null {
+    private findHiddenSingleInCol(col: number): PlacementMove | null {
         for (let value = 1; value <= 9; value++) {
             const candidates: number[] = [];
             for (let row = 0; row < 9; row++) {
@@ -330,13 +365,13 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { row: candidates[0], col, value, algorithm: "Hidden Single" };
+                return { type: "placement", row: candidates[0], col, value, algorithm: "Hidden Single" };
             }
         }
         return null;
     }
 
-    private findHiddenSingleInBox(ibox: number): Move | null {
+    private findHiddenSingleInBox(ibox: number): PlacementMove | null {
         for (let value = 1; value <= 9; value++) {
             const candidates: Array<{ row: number; col: number }> = [];
             for (let idx = 0; idx < 9; idx++) {
@@ -346,13 +381,61 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { row: candidates[0].row, col: candidates[0].col, value, algorithm: "Hidden Single" };
+                return { type: "placement", row: candidates[0].row, col: candidates[0].col, value, algorithm: "Hidden Single" };
             }
         }
         return null;
     }
 
-    private findHiddenSingle(): Move | null {
+    private findPointingPairTriple(): EliminationMove | null {
+        for (let ibox = 0; ibox < 9; ibox++) {
+            const boxStartRow = Math.floor(ibox / 3) * 3;
+            const boxStartCol = (ibox % 3) * 3;
+            for (let digit = 1; digit <= 9; digit++) {
+                const cells: Array<{ row: number; col: number }> = [];
+                for (let idx = 0; idx < 9; idx++) {
+                    const { row, col } = this.boxToPuzzle(ibox, idx);
+                    if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)) {
+                        cells.push({ row, col });
+                    }
+                }
+                if (cells.length < 2) continue;
+
+                if (cells.every((c) => c.row === cells[0].row)) {
+                    const sharedRow = cells[0].row;
+                    const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                    for (let c = 0; c < 9; c++) {
+                        if (c < boxStartCol || c >= boxStartCol + 3) {
+                            if (this.board[sharedRow][c] === 0 && this.possiblesGrid[sharedRow][c].includes(digit)) {
+                                eliminations.push({ row: sharedRow, col: c, value: digit });
+                            }
+                        }
+                    }
+                    if (eliminations.length > 0) {
+                        return { type: "elimination", eliminations, algorithm: "Pointing Pair/Triple" };
+                    }
+                }
+
+                if (cells.every((c) => c.col === cells[0].col)) {
+                    const sharedCol = cells[0].col;
+                    const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                    for (let r = 0; r < 9; r++) {
+                        if (r < boxStartRow || r >= boxStartRow + 3) {
+                            if (this.board[r][sharedCol] === 0 && this.possiblesGrid[r][sharedCol].includes(digit)) {
+                                eliminations.push({ row: r, col: sharedCol, value: digit });
+                            }
+                        }
+                    }
+                    if (eliminations.length > 0) {
+                        return { type: "elimination", eliminations, algorithm: "Pointing Pair/Triple" };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private findHiddenSingle(): PlacementMove | null {
         for (let row = 0; row < 9; row++) {
             const move = this.findHiddenSingleInRow(row);
             if (move) return move;
