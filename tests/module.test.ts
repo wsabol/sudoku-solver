@@ -56,8 +56,8 @@ describe("Node module API", () => {
             const result = Sudoku.nextMove(BOARD);
             expect(result.status).toBe("In progress");
             expect(result.move).not.toBeNull();
-            expect(result.message).toMatch(/^Place \d+ in row \d+ column \d+$/);
-            expect(result.move!.algorithm).toMatch(/^(Naked Singles|Hidden Singles)$/);
+            expect(result.message).toMatch(/^Place \d+ in r\d+c\d+$/);
+            expect(result.move!.algorithm).toMatch(/^(Naked Single|Hidden Single)$/);
         });
 
         it("returns a move for a matrix board input", () => {

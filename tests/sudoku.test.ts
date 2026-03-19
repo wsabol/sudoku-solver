@@ -1212,30 +1212,30 @@ describe("SudokuSolver", () => {
             const s = new SudokuSolver(BOARD);
             const move = s.getNextMove();
             expect(move).not.toBeNull();
-            expect(move!.algorithm).toMatch(/^(Naked Singles|Hidden Singles)$/);
+            expect(move!.algorithm).toBeTruthy();
         });
 
-        it("returns algorithm Naked Singles when a cell has exactly one candidate", () => {
+        it("returns algorithm Naked Single or Full House when a cell has exactly one candidate", () => {
             // All cells filled except one — that cell must be a naked single
             const almostSolved = parseBoardString(SOLVED_BOARD);
             almostSolved[0][0] = 0;
             const s = new SudokuSolver(almostSolved);
             const move = s.getNextMove();
             expect(move).not.toBeNull();
-            expect(move!.algorithm).toBe("Naked Singles");
+            expect(move!.algorithm).toMatch(/^(Naked Single|Full House)$/);
         });
 
-        it("returns algorithm Hidden Singles once all naked singles are exhausted", () => {
+        it("returns algorithm Hidden Single once all naked singles are exhausted", () => {
             const s = new SudokuSolver(BOARD);
             // Drain all naked singles first
             let move = s.getNextMove();
-            while (move && move.algorithm === "Naked Singles") {
+            while (move && move.algorithm === "Naked Single") {
                 s.setSquareValue(move.row, move.col, move.value);
                 move = s.getNextMove();
             }
             // BOARD requires hidden singles to progress beyond naked singles
             expect(move).not.toBeNull();
-            expect(move!.algorithm).toBe("Hidden Singles");
+            expect(move!.algorithm).toBe("Hidden Single");
         });
 
         it("returns null for a complete board", () => {

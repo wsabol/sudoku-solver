@@ -45,7 +45,7 @@ function nextMove(boardInput: string | Board): MoveResult {
 
     const move = sudoku.getNextMove();
     const message = move
-        ? `Place ${move.value} in row ${move.row + 1} column ${move.col + 1}`
+        ? `Place ${move.value} in r${move.row + 1}c${move.col + 1}`
         : "No more moves";
 
     if (move) {
