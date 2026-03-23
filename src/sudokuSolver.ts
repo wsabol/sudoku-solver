@@ -374,7 +374,15 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { type: "placement", row, col: candidates[0], value, algorithm: "Hidden Single" };
+                let move: PlacementMove = { type: "placement", row, col: candidates[0], value, algorithm: "Hidden Single" };
+
+                // check if last digit
+                const placementsOfDigit = this.board.flat().filter((v) => v === value).length;
+                if (placementsOfDigit === 8) {
+                    move.algorithm = "Last Digit";
+                }
+
+                return move;
             }
         }
         return null;
@@ -389,7 +397,15 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { type: "placement", row: candidates[0], col, value, algorithm: "Hidden Single" };
+                let move: PlacementMove = { type: "placement", row: candidates[0], col, value, algorithm: "Hidden Single" };
+
+                // check if last digit
+                const placementsOfDigit = this.board.flat().filter((v) => v === value).length;
+                if (placementsOfDigit === 8) {
+                    move.algorithm = "Last Digit";
+                }
+
+                return move;
             }
         }
         return null;
@@ -405,7 +421,15 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                return { type: "placement", row: candidates[0].row, col: candidates[0].col, value, algorithm: "Hidden Single" };
+                let move: PlacementMove = { type: "placement", row: candidates[0].row, col: candidates[0].col, value, algorithm: "Hidden Single" };
+
+                // check if last digit
+                const placementsOfDigit = this.board.flat().filter((v) => v === value).length;
+                if (placementsOfDigit === 8) {
+                    move.algorithm = "Last Digit";
+                }
+
+                return move;
             }
         }
         return null;
