@@ -4,6 +4,7 @@ import { ValidationReason, ValidationResult, pushUniqueReason } from "./validate
 export type Board = number[][];
 
 export type Algorithm =
+    | "Last Digit"
     | "Full House"
     | "Naked Single"
     | "Hidden Single"
@@ -13,7 +14,7 @@ export type Algorithm =
     | "Naked Quad";
 
 /** Drives `findBestMove` order; not the same as `Move.algorithm` (specific technique on the move). */
-type SearchPhase = "SinglesPreferFullHouse" | "Singles" | "HiddenSingle" | "Pointing" | "NakedSubset";
+type SearchPhase = "NakedSingle" | "HiddenSingle" | "Pointing" | "NakedSubset";
 
 export interface PlacementMove {
     type: "placement";
@@ -37,8 +38,7 @@ const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export default class SudokuSolver {
     private static readonly SEARCH_PHASES: SearchPhase[] = [
-        "SinglesPreferFullHouse",
-        "Singles",
+        "NakedSingle",
         "HiddenSingle",
         "Pointing",
         "NakedSubset",
@@ -315,11 +315,7 @@ export default class SudokuSolver {
 
     private findMoveForPhase(phase: SearchPhase): Move | null {
         switch (phase) {
-            case "SinglesPreferFullHouse": {
-                const move = this.findNakedSingle();
-                return move?.algorithm === "Full House" ? move : null;
-            }
-            case "Singles":
+            case "NakedSingle":
                 return this.findNakedSingle();
             case "HiddenSingle":
                 return this.findHiddenSingle();
@@ -351,6 +347,14 @@ export default class SudokuSolver {
                         const boxValues = this.getBox(this.boxIndex(row, col));
                         if (boxValues.filter((v) => v === 0).length === 1) {
                             algo = "Full House";
+                        }
+
+                        if (algo === "Naked Single") {
+                            // check if last digit
+                            const placementsOfDigit = this.board.flat().filter((v) => v === placeValue).length;
+                            if (placementsOfDigit === 8) {
+                                algo = "Last Digit";
+                            }
                         }
 
                         return { type: "placement", row, col, value: placeValue, algorithm: algo };

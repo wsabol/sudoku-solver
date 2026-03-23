@@ -1265,6 +1265,24 @@ describe("SudokuSolver", () => {
             expect(move!.algorithm).toMatch(/^(Naked Single|Full House)$/);
         });
 
+        it("returns algorithm Last Digit when eight copies of the value are placed and the cell is a naked single (not full house)", () => {
+            // Derived from SOLVED_BOARD: four empties so row/col/box each still have ≥2 empties,
+            // but digit 9 already appears eight times — only (0,0) can be 9.
+            const board = parseBoardString(SOLVED_BOARD);
+            board[0][0] = 0;
+            board[0][8] = 0;
+            board[8][0] = 0;
+            board[1][1] = 0;
+            const s = new SudokuSolver(board);
+            const move = s.getNextMove();
+            expect(move).not.toBeNull();
+            expect(move!.type).toBe("placement");
+            if (move !== null && move.type === "placement") {
+                expect(move.algorithm).toBe("Last Digit");
+                expect(move).toMatchObject({ row: 0, col: 0, value: 9 });
+            }
+        });
+
         it("returns algorithm Hidden Single once all naked singles are exhausted", () => {
             const s = new SudokuSolver(BOARD);
             // Drain all naked singles first
