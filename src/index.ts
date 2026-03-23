@@ -51,8 +51,12 @@ function nextMove(boardInput: string | Board): MoveResult {
         message = `Place ${move.value} in r${move.row + 1}c${move.col + 1} (${move.algorithm})`;
         sudoku.setSquareValue(move.row, move.col, move.value);
     } else {
-        const digit = move.eliminations[0]!.value;
-        message = `Eliminate ${digit} from ${move.eliminations.length} cell(s) (${move.algorithm})`;
+        const digits = [...new Set(move.eliminations.map((e) => e.value))].sort((a, b) => a - b);
+        const digitPart =
+            digits.length === 1
+                ? String(digits[0])
+                : `{${digits.join(",")}}`;
+        message = `Eliminate ${digitPart} from ${move.eliminations.length} cell(s) (${move.algorithm})`;
         sudoku.applyElimination(move);
     }
 

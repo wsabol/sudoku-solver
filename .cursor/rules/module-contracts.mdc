@@ -39,7 +39,7 @@ Move type contract:
 - `PlacementMove`: `{ type: "placement"; row; col; value; algorithm }`
 - `EliminationMove`: `{ type: "elimination"; eliminations: Array<{ row; col; value }>; algorithm }`
 - Always narrow on `move.type` before accessing placement-specific fields.
-- `Algorithm = "Full House" | "Naked Single" | "Hidden Single" | "Pointing Pair/Triple"`
+- `Algorithm = "Full House" | "Naked Single" | "Hidden Single" | "Pointing Pair/Triple" | "Naked Pair" | "Naked Triple" | "Naked Quad"` (specific technique on the move; `findBestMove` order uses internal phases in `sudokuSolver.ts`, not part of the public API)
 
 Validation reason taxonomy:
 - `duplicate_in_row`

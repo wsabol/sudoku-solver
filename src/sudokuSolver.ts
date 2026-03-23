@@ -3,7 +3,17 @@ import { ValidationReason, ValidationResult, pushUniqueReason } from "./validate
 
 export type Board = number[][];
 
-export type Algorithm = "Full House" | "Naked Single" | "Hidden Single" | "Pointing Pair/Triple";
+export type Algorithm =
+    | "Full House"
+    | "Naked Single"
+    | "Hidden Single"
+    | "Pointing Pair/Triple"
+    | "Naked Pair"
+    | "Naked Triple"
+    | "Naked Quad";
+
+/** Drives `findBestMove` order; not the same as `Move.algorithm` (specific technique on the move). */
+type SearchPhase = "SinglesPreferFullHouse" | "Singles" | "HiddenSingle" | "Pointing" | "NakedSubset";
 
 export interface PlacementMove {
     type: "placement";
@@ -26,7 +36,13 @@ export type DifficultyLevel = "Easy" | "Medium" | "Hard" | "Diabolical" | "Impos
 const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export default class SudokuSolver {
-    static readonly ALGORITHMS: Algorithm[] = ["Full House", "Naked Single", "Hidden Single", "Pointing Pair/Triple"];
+    private static readonly SEARCH_PHASES: SearchPhase[] = [
+        "SinglesPreferFullHouse",
+        "Singles",
+        "HiddenSingle",
+        "Pointing",
+        "NakedSubset",
+    ];
 
     private board: Board;
     private possiblesGrid: number[][][];
@@ -290,27 +306,27 @@ export default class SudokuSolver {
     }
 
     private findBestMove(): Move | null {
-        for (const algorithm of SudokuSolver.ALGORITHMS) {
-            const move = this.findNextPlacement(algorithm);
+        for (const phase of SudokuSolver.SEARCH_PHASES) {
+            const move = this.findMoveForPhase(phase);
             if (move) return move;
         }
         return null;
     }
 
-    private findNextPlacement(algorithm: Algorithm): Move | null {
-        switch (algorithm) {
-            case "Full House":
-            case "Naked Single": {
+    private findMoveForPhase(phase: SearchPhase): Move | null {
+        switch (phase) {
+            case "SinglesPreferFullHouse": {
                 const move = this.findNakedSingle();
-                if (algorithm === "Full House") {
-                    return move?.algorithm === "Full House" ? move : null;
-                }
-                return move;
+                return move?.algorithm === "Full House" ? move : null;
             }
-            case "Hidden Single":
+            case "Singles":
+                return this.findNakedSingle();
+            case "HiddenSingle":
                 return this.findHiddenSingle();
-            case "Pointing Pair/Triple":
+            case "Pointing":
                 return this.findPointingPairTriple();
+            case "NakedSubset":
+                return this.findNakedSubsetElimination();
         }
     }
 
@@ -437,6 +453,87 @@ export default class SudokuSolver {
             }
         }
         return null;
+    }
+
+    private eachHouseInOrder(): { row: number; col: number }[][] {
+        const houses: { row: number; col: number }[][] = [];
+        for (let r = 0; r < 9; r++) {
+            houses.push(Array.from({ length: 9 }, (_, c) => ({ row: r, col: c })));
+        }
+        for (let c = 0; c < 9; c++) {
+            houses.push(Array.from({ length: 9 }, (_, row) => ({ row, col: c })));
+        }
+        for (let b = 0; b < 9; b++) {
+            const cells: { row: number; col: number }[] = [];
+            for (let idx = 0; idx < 9; idx++) {
+                cells.push(this.boxToPuzzle(b, idx));
+            }
+            houses.push(cells);
+        }
+        return houses;
+    }
+
+    private findNakedSubsetElimination(): EliminationMove | null {
+        for (const houseCells of this.eachHouseInOrder()) {
+            for (let k = 2; k <= 4; k++) {
+                const move = this.tryNakedSubsetInHouse(houseCells, k);
+                if (move) return move;
+            }
+        }
+        return null;
+    }
+
+    private tryNakedSubsetInHouse(houseCells: { row: number; col: number }[], k: number): EliminationMove | null {
+        const empties = houseCells.filter(
+            ({ row, col }) => this.board[row][col] === 0 && this.possiblesGrid[row][col].length > 0
+        );
+        if (empties.length < k) {
+            return null;
+        }
+        const algorithm: Algorithm = k === 2 ? "Naked Pair" : k === 3 ? "Naked Triple" : "Naked Quad";
+        const n = empties.length;
+        const indices: number[] = [];
+
+        const dfs = (start: number): EliminationMove | null => {
+            if (indices.length === k) {
+                const subset = indices.map((i) => empties[i]!);
+                const union = new Set<number>();
+                for (const { row, col } of subset) {
+                    for (const v of this.possiblesGrid[row][col]) {
+                        union.add(v);
+                    }
+                }
+                if (union.size !== k) {
+                    return null;
+                }
+                const subsetKeys = new Set(subset.map(({ row, col }) => row * 9 + col));
+                const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                for (const { row, col } of houseCells) {
+                    if (this.board[row][col] !== 0 || subsetKeys.has(row * 9 + col)) {
+                        continue;
+                    }
+                    const poss = this.possiblesGrid[row][col];
+                    for (const d of union) {
+                        if (poss.includes(d)) {
+                            eliminations.push({ row, col, value: d });
+                        }
+                    }
+                }
+                if (eliminations.length === 0) {
+                    return null;
+                }
+                return { type: "elimination", eliminations, algorithm };
+            }
+            for (let i = start; i < n; i++) {
+                indices.push(i);
+                const res = dfs(i + 1);
+                indices.pop();
+                if (res) return res;
+            }
+            return null;
+        };
+
+        return dfs(0);
     }
 
     private findHiddenSingle(): PlacementMove | null {

@@ -36,7 +36,7 @@ const solveAnswers = [
     {
         title: 'Moderate',
         input: '030007000067100350019000000500000007070203010900000008000000680086002970000700040',
-        output: '035007891067100354019000726500000007678203019900070008754000682186002973392700145',
+        output: '235467891867129354419835726543918267678253419921674538754391682186542973392786145',
         describe: {
             isValid: true,
             isComplete: false,
@@ -96,7 +96,7 @@ const solveAnswers = [
     {
         title: 'Naked Triples',
         input: '000000000001900500560310090100600028004000700270004003040068035002005900000000000',
-        output: '000000300001900500560310094100600428004000709270004003040068035002005900000000000',
+        output: '928547316431986572567312894195673428384251769276894153749168235612435987853729641',
         describe: {
             isValid: true,
             isComplete: false,
@@ -156,7 +156,7 @@ const solveAnswers = [
     {
         title: 'Simple Colouring Rule 2',
         input: '000000060002705000500013009704500003003040100900007405600920004000301800080000000',
-        output: '300000560002705300500013209714500003053040100900137405630928704000301800080000030',
+        output: '300000560092765300500013209714500603053040100900137405630928704009301806080000930',
         describe: {
             isValid: true,
             isComplete: false,
@@ -240,7 +240,7 @@ const solveAnswers = [
     {
         title: 'X-Cycle (strong link)',
         input: '000000020005080400400100800090002000037000560000970000004008605006040700080000000',
-        output: '000400020005080400400100850090002000237814569040970000004008605056040700080000000',
+        output: '800400020005080400400100850098002100237814569041970000004008605056040700080000000',
         describe: {
             isValid: true,
             isComplete: false,
@@ -252,7 +252,7 @@ const solveAnswers = [
     {
         title: 'X-Cycle (off-chain)',
         input: '040005800700010900003007100400700000050908040000002008009500700000020005004100090',
-        output: '040005800705810904803007150408701009050908040000002008009584700000029485584170090',
+        output: '040095800705810904893047150408701009050908040906402008009584700000029485584170090',
         describe: {
             isValid: true,
             isComplete: false,
@@ -264,7 +264,7 @@ const solveAnswers = [
     {
         title: 'XY-Chain x 16',
         input: '902060300850000060000000000170850000009207600000016050000000000030000078004090200',
-        output: '902060300850000060000000000176850400509207600020016050090000000030000978004090200',
+        output: '902060300850000060060000000176850400509207600020016050090000000030000978004090200',
         describe: {
             isValid: true,
             isComplete: false,
@@ -336,7 +336,7 @@ const solveAnswers = [
     {
         title: '3D Medusa Rule 6',
         input: '900060500001000040300700008000058400060000080002040300100005009020000800007030002',
-        output: '900060500201500040356704008700058400060000080002040300100005009020000804007030002',
+        output: '900060500201500040356704008700058400060000080002040300100005009020000834007030152',
         describe: {
             isValid: true,
             isComplete: false,
@@ -492,7 +492,7 @@ const solveAnswers = [
     {
         title: 'EUR type 4',
         input: '800000002020800040005007900000040800640509031002010000006900200090005060500000003',
-        output: '800400002020800040405207900050040820648529731002018050006904205290005060500002093',
+        output: '800400002020800040405207900050040829648529731902018654006904205290005060500002093',
         describe: {
             isValid: true,
             isComplete: false,
@@ -660,7 +660,7 @@ const solveAnswers = [
     {
         title: 'Dual CFC',
         input: '008050600940000000250300079000600000020010040000007000360008057000000016007020400',
-        output: '008050604940000000250300079000600000620010740000007060360008057000000016007026400',
+        output: '008050604940000000250304079000600000620010740000007060360008057000000016007026400',
         describe: {
             isValid: true,
             isComplete: false,
@@ -744,7 +744,7 @@ const solveAnswers = [
     {
         title: 'Riddle of Sho',
         input: '000000605000300090080004001040020970000000000031080060900600020010007000504000000',
-        output: '000000605000300090080004031040020970000000000031080060970600020010007000504000000',
+        output: '003000605000300097080004231040020970000000000031080060978600020310007000504000700',
         describe: {
             isValid: true,
             isComplete: false,
@@ -1344,6 +1344,71 @@ describe("SudokuSolver", () => {
             s.solve();
             // Verify the solver made further progress with Pointing Pair/Triple than without
             expect(s.countEmptyCells()).toBeLessThan(initialEmpty);
+        });
+    });
+
+    describe("Naked subset (Pair / Triple / Quad)", () => {
+        const NAKED_TRIPLES_FIXTURE =
+            "000000000001900500560310090100600028004000700270004003040068035002005900000000000";
+
+        it("finds Naked Pair elimination after placements and Pointing on the Naked Triples fixture", () => {
+            const s = new SudokuSolver(NAKED_TRIPLES_FIXTURE);
+            let move = s.getNextMove();
+            while (move && move.type === "placement") {
+                s.setSquareValue(move.row, move.col, move.value);
+                move = s.getNextMove();
+            }
+            expect(move?.type).toBe("elimination");
+            expect(move?.algorithm).toBe("Pointing Pair/Triple");
+            if (move !== null && move.type === "elimination") {
+                s.applyElimination(move);
+            }
+            move = s.getNextMove();
+            expect(move?.type).toBe("elimination");
+            expect(move?.algorithm).toBe("Naked Pair");
+        });
+
+        it("finds Naked Triple elimination while solving the Naked Triples fixture", () => {
+            const s = new SudokuSolver(NAKED_TRIPLES_FIXTURE);
+            let saw = false;
+            for (let i = 0; i < 300; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "Naked Triple") {
+                    expect(m.eliminations.length).toBeGreaterThan(0);
+                    saw = true;
+                    break;
+                }
+                if (m.type === "placement") {
+                    s.setSquareValue(m.row, m.col, m.value);
+                } else {
+                    s.applyElimination(m);
+                }
+            }
+            expect(saw).toBe(true);
+        });
+
+        const X_CYCLE_STRONG =
+            "000000020005080400400100800090002000037000560000970000004008605006040700080000000";
+
+        it("finds Naked Quad elimination on the X-Cycle (strong link) fixture solve path", () => {
+            const s = new SudokuSolver(X_CYCLE_STRONG);
+            let saw = false;
+            for (let i = 0; i < 400; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "Naked Quad") {
+                    expect(m.eliminations.length).toBeGreaterThan(0);
+                    saw = true;
+                    break;
+                }
+                if (m.type === "placement") {
+                    s.setSquareValue(m.row, m.col, m.value);
+                } else {
+                    s.applyElimination(m);
+                }
+            }
+            expect(saw).toBe(true);
         });
     });
 
