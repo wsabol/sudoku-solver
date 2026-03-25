@@ -1,4 +1,4 @@
-import { cloneBoard, assertBoardShape, parseBoardString, duplicateValues } from "./utils.js";
+import { cloneBoard, assertBoardShape, parseBoardString, duplicateValues, boxNumber } from "./utils.js";
 import { ValidationReason, ValidationResult, pushUniqueReason } from "./validate.js";
 
 export type Board = number[][];
@@ -22,12 +22,16 @@ export interface PlacementMove {
     col: number;
     value: number;
     algorithm: Algorithm;
+    message: string;
+    reasoning: string;
 }
 
 export interface EliminationMove {
     type: "elimination";
     eliminations: Array<{ row: number; col: number; value: number }>;
     algorithm: Algorithm;
+    message: string;
+    reasoning: string;
 }
 
 export type Move = PlacementMove | EliminationMove;
@@ -305,6 +309,40 @@ export default class SudokuSolver {
         }
     }
 
+    private finalizePlacement(
+        row: number,
+        col: number,
+        value: number,
+        algorithm: Algorithm,
+        reasoning: string
+    ): PlacementMove {
+        return {
+            type: "placement",
+            row,
+            col,
+            value,
+            algorithm,
+            message: `Place ${value} in r${row + 1}c${col + 1} (${algorithm})`,
+            reasoning,
+        };
+    }
+
+    private finalizeElimination(
+        eliminations: Array<{ row: number; col: number; value: number }>,
+        algorithm: Algorithm,
+        reasoning: string
+    ): EliminationMove {
+        const digits = [...new Set(eliminations.map((e) => e.value))].sort((a, b) => a - b);
+        const digitPart = digits.length === 1 ? String(digits[0]) : `{${digits.join("/")}}`;
+        return {
+            type: "elimination",
+            eliminations,
+            algorithm,
+            message: `Eliminate ${digitPart} from ${eliminations.length} cell(s) (${algorithm})`,
+            reasoning,
+        };
+    }
+
     private findBestMove(): Move | null {
         for (const phase of SudokuSolver.SEARCH_PHASES) {
             const move = this.findMoveForPhase(phase);
@@ -334,35 +372,52 @@ export default class SudokuSolver {
                     if (p.length === 1) {
                         const placeValue = p[0];
                         let algo = "Naked Single" as Algorithm;
+                        let house = '' as string;
 
                         // check if full house
                         const rowValues = this.getRow(row);
                         if (rowValues.filter((v) => v === 0).length === 1) {
                             algo = "Full House";
+                            house = "row ${row + 1}";
                         }
                         const colValues = this.getColumn(col);
                         if (colValues.filter((v) => v === 0).length === 1) {
                             algo = "Full House";
+                            house = "column ${col + 1}";
                         }
                         const boxValues = this.getBox(this.boxIndex(row, col));
                         if (boxValues.filter((v) => v === 0).length === 1) {
                             algo = "Full House";
+                            house = `box ${boxNumber(row, col)}`;
                         }
 
-                        if (algo === "Naked Single") {
-                            // check if last digit
+                        let reasoning: string;
+                        if (algo === "Full House") {
+                            reasoning = `This is the last empty cell in ${house} and must be ${placeValue}.`;
+                        } else {
                             const placementsOfDigit = this.board.flat().filter((v) => v === placeValue).length;
                             if (placementsOfDigit === 8) {
                                 algo = "Last Digit";
+                                reasoning = this.lastDigitReasoning(placeValue);
+                            } else {
+                                reasoning = `${placeValue} is the only remaining candidate for this cell.`;
                             }
                         }
 
-                        return { type: "placement", row, col, value: placeValue, algorithm: algo };
+                        return this.finalizePlacement(row, col, placeValue, algo, reasoning);
                     }
                 }
             }
         }
         return null;
+    }
+
+    private hiddenSingleReasoning(house: string, value: number): string {
+        return `This is the only empty cell in ${house} that can be a ${value}.`;
+    }
+
+    private lastDigitReasoning(value: number): string {
+        return `Eight cells already contain ${value}, so the 9th occurrence must be placed here.`;
     }
 
     private findHiddenSingleInRow(row: number): PlacementMove | null {
@@ -374,15 +429,15 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                let move: PlacementMove = { type: "placement", row, col: candidates[0], value, algorithm: "Hidden Single" };
-
-                // check if last digit
+                const col = candidates[0];
+                let algorithm: Algorithm = "Hidden Single";
+                let reasoning = this.hiddenSingleReasoning(`row ${row + 1}`, value);
                 const placementsOfDigit = this.board.flat().filter((v) => v === value).length;
                 if (placementsOfDigit === 8) {
-                    move.algorithm = "Last Digit";
+                    algorithm = "Last Digit";
+                    reasoning = this.lastDigitReasoning(value);
                 }
-
-                return move;
+                return this.finalizePlacement(row, col, value, algorithm, reasoning);
             }
         }
         return null;
@@ -397,15 +452,15 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                let move: PlacementMove = { type: "placement", row: candidates[0], col, value, algorithm: "Hidden Single" };
-
-                // check if last digit
+                const row = candidates[0];
+                let algorithm: Algorithm = "Hidden Single";
+                let reasoning = this.hiddenSingleReasoning(`column ${col + 1}`, value);
                 const placementsOfDigit = this.board.flat().filter((v) => v === value).length;
                 if (placementsOfDigit === 8) {
-                    move.algorithm = "Last Digit";
+                    algorithm = "Last Digit";
+                    reasoning = this.lastDigitReasoning(value);
                 }
-
-                return move;
+                return this.finalizePlacement(row, col, value, algorithm, reasoning);
             }
         }
         return null;
@@ -421,15 +476,15 @@ export default class SudokuSolver {
                 }
             }
             if (candidates.length === 1) {
-                let move: PlacementMove = { type: "placement", row: candidates[0].row, col: candidates[0].col, value, algorithm: "Hidden Single" };
-
-                // check if last digit
+                const { row: r, col: c } = candidates[0];
+                let algorithm: Algorithm = "Hidden Single";
+                let reasoning = this.hiddenSingleReasoning(`box ${boxNumber(r, c)}`, value);
                 const placementsOfDigit = this.board.flat().filter((v) => v === value).length;
                 if (placementsOfDigit === 8) {
-                    move.algorithm = "Last Digit";
+                    algorithm = "Last Digit";
+                    reasoning = this.lastDigitReasoning(value);
                 }
-
-                return move;
+                return this.finalizePlacement(r, c, value, algorithm, reasoning);
             }
         }
         return null;
@@ -439,6 +494,7 @@ export default class SudokuSolver {
         for (let ibox = 0; ibox < 9; ibox++) {
             const boxStartRow = Math.floor(ibox / 3) * 3;
             const boxStartCol = (ibox % 3) * 3;
+            const boxNum = ibox + 1;
             for (let digit = 1; digit <= 9; digit++) {
                 const cells: Array<{ row: number; col: number }> = [];
                 for (let idx = 0; idx < 9; idx++) {
@@ -460,7 +516,8 @@ export default class SudokuSolver {
                         }
                     }
                     if (eliminations.length > 0) {
-                        return { type: "elimination", eliminations, algorithm: "Pointing Pair/Triple" };
+                        const reasoning = `In box ${boxNum}, every candidate for ${digit} lies in row ${sharedRow + 1}, so ${digit} cannot appear elsewhere in that row outside the box.`;
+                        return this.finalizeElimination(eliminations, "Pointing Pair/Triple", reasoning);
                     }
                 }
 
@@ -475,7 +532,8 @@ export default class SudokuSolver {
                         }
                     }
                     if (eliminations.length > 0) {
-                        return { type: "elimination", eliminations, algorithm: "Pointing Pair/Triple" };
+                        const reasoning = `In box ${boxNum}, every candidate for ${digit} lies in column ${sharedCol + 1}, so ${digit} cannot appear elsewhere in that column outside the box.`;
+                        return this.finalizeElimination(eliminations, "Pointing Pair/Triple", reasoning);
                     }
                 }
             }
@@ -511,6 +569,21 @@ export default class SudokuSolver {
         return null;
     }
 
+    /** `houseCells` is one full row, column, or box (9 cells). */
+    private getHouseContext(houseCells: { row: number; col: number }[]): {
+        wherePhrase: string;
+        sameKindWord: "row" | "column" | "box";
+    } {
+        const h = houseCells[0]!;
+        if (houseCells.every((c) => c.row === h.row)) {
+            return { wherePhrase: `row ${h.row + 1}`, sameKindWord: "row" };
+        }
+        if (houseCells.every((c) => c.col === h.col)) {
+            return { wherePhrase: `column ${h.col + 1}`, sameKindWord: "column" };
+        }
+        return { wherePhrase: `box ${boxNumber(h.row, h.col)}`, sameKindWord: "box" };
+    }
+
     private tryNakedSubsetInHouse(houseCells: { row: number; col: number }[], k: number): EliminationMove | null {
         const empties = houseCells.filter(
             ({ row, col }) => this.board[row][col] === 0 && this.possiblesGrid[row][col].length > 0
@@ -519,6 +592,7 @@ export default class SudokuSolver {
             return null;
         }
         const algorithm: Algorithm = k === 2 ? "Naked Pair" : k === 3 ? "Naked Triple" : "Naked Quad";
+        const { wherePhrase, sameKindWord } = this.getHouseContext(houseCells);
         const n = empties.length;
         const indices: number[] = [];
 
@@ -550,7 +624,9 @@ export default class SudokuSolver {
                 if (eliminations.length === 0) {
                     return null;
                 }
-                return { type: "elimination", eliminations, algorithm };
+                const digitStr = [...union].sort((a, b) => a - b).join("/");
+                const reasoning = `${algorithm} ${digitStr} in ${wherePhrase} means those digits can be eliminated from the other cells in that same ${sameKindWord}.`;
+                return this.finalizeElimination(eliminations, algorithm, reasoning);
             }
             for (let i = start; i < n; i++) {
                 indices.push(i);

@@ -1221,6 +1221,8 @@ describe("SudokuSolver", () => {
                 type: "elimination" as const,
                 eliminations: [{ row: targetRow, col: targetCol, value: candidateToRemove }],
                 algorithm: "Pointing Pair/Triple" as const,
+                message: `Eliminate ${candidateToRemove} from 1 cell(s) (Pointing Pair/Triple)`,
+                reasoning: "Synthetic elimination for unit test.",
             };
             s.applyElimination(eliminationMove);
             expect(s.getPossibles(targetRow, targetCol)).not.toContain(candidateToRemove);

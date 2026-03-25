@@ -47,17 +47,13 @@ function nextMove(boardInput: string | Board): MoveResult {
     let message: string;
     if (!move) {
         message = "No more moves";
-    } else if (move.type === "placement") {
-        message = `Place ${move.value} in r${move.row + 1}c${move.col + 1} (${move.algorithm})`;
-        sudoku.setSquareValue(move.row, move.col, move.value);
     } else {
-        const digits = [...new Set(move.eliminations.map((e) => e.value))].sort((a, b) => a - b);
-        const digitPart =
-            digits.length === 1
-                ? String(digits[0])
-                : `{${digits.join(",")}}`;
-        message = `Eliminate ${digitPart} from ${move.eliminations.length} cell(s) (${move.algorithm})`;
-        sudoku.applyElimination(move);
+        message = move.message;
+        if (move.type === "placement") {
+            sudoku.setSquareValue(move.row, move.col, move.value);
+        } else {
+            sudoku.applyElimination(move);
+        }
     }
 
     return {

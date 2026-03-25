@@ -1,5 +1,9 @@
 import { type Board } from "./sudokuSolver.js";
 
+export function boxNumber(row: number, col: number): number {
+    return Math.floor(row / 3) * 3 + Math.floor(col / 3) + 1; // 1-9
+}
+
 export function cloneBoard(board: Board): Board {
     return board.map((row) => [...row]);
 }

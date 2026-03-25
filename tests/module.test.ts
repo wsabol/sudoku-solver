@@ -58,6 +58,10 @@ describe("Node module API", () => {
             expect(result.move).not.toBeNull();
             expect(result.message).toMatch(/^Place \d+ in r\d+c\d+/);
             expect(result.move!.algorithm).toMatch(/^(Naked Single|Hidden Single)$/);
+            if (result.move !== null && result.move.type === "placement") {
+                expect(result.move.message).toBe(result.message);
+                expect(result.move.reasoning.length).toBeGreaterThan(0);
+            }
         });
 
         it("returns a move for a matrix board input", () => {

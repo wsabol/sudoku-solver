@@ -36,8 +36,8 @@ Output contract:
 
 Move type contract:
 - `Move = PlacementMove | EliminationMove` (discriminated union on `type` field)
-- `PlacementMove`: `{ type: "placement"; row; col; value; algorithm }`
-- `EliminationMove`: `{ type: "elimination"; eliminations: Array<{ row; col; value }>; algorithm }`
+- `PlacementMove`: `{ type: "placement"; row; col; value; algorithm; message; reasoning }`
+- `EliminationMove`: `{ type: "elimination"; eliminations: Array<{ row; col; value }>; algorithm; message; reasoning }`
 - Always narrow on `move.type` before accessing placement-specific fields.
 - `Algorithm = "Full House" | "Naked Single" | "Hidden Single" | "Pointing Pair/Triple" | "Naked Pair" | "Naked Triple" | "Naked Quad"` (specific technique on the move; `findBestMove` order uses internal phases in `sudokuSolver.ts`, not part of the public API)
 
