@@ -38,5 +38,5 @@ Solver internals:
 - `applyElimination(move: EliminationMove)` removes specified candidates from `possiblesGrid` without placing a digit.
 - `applyMove(move: Move)` branches on `move.type` to placement vs elimination.
 - `solve()` loops `findBestMove` + `applyMove` until stuck or complete.
-- `findBestMove()` walks `SEARCH_PHASES` (not exported): `NakedSingle` → `HiddenSingle` → `Pointing` → `NakedSubset` → `HiddenSubset`. `Move.algorithm` is the specific label (e.g. `"Last Digit"`, `"Full House"`, `"Naked Pair"`); naked-single path can upgrade to Full House / Last Digit.
+- `findBestMove()` walks `SEARCH_PHASES` (not exported): `NakedSingle` → `HiddenSingle` → `Pointing` → `NakedSubset` (pairs/triples only) → `HiddenSubset` (pairs/triples only) → `NakedHiddenQuads` (per house: try `Naked Quad`, then `Hidden Quad`). `Move.algorithm` is the specific label (e.g. `"Last Digit"`, `"Full House"`, `"Naked Pair"`); naked-single path can upgrade to Full House / Last Digit.
 - Reasoning examples: pointing names `3×3 box` index (1–9, `boxNumber`); naked subset pattern `Naked Pair 7/9 in row 5 … same row` (digits `/`-sorted, house = row | column | box); hidden subset pattern `Hidden Pair 8/9 in column 5: in that column, those digits appear only in r3c5, r5c5, …` (reserved cells `rXcY`, digits `/`-sorted).

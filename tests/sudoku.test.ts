@@ -1365,7 +1365,7 @@ describe("SudokuSolver", () => {
         });
     });
 
-    describe("Naked subset (Pair / Triple / Quad)", () => {
+    describe("Naked subset (Pair / Triple)", () => {
         const NAKED_TRIPLES_FIXTURE =
             "000000000001900500560310090100600028004000700270004003040068035002005900000000000";
 
@@ -1405,32 +1405,9 @@ describe("SudokuSolver", () => {
             }
             expect(saw).toBe(true);
         });
-
-        const X_CYCLE_STRONG =
-            "000000020005080400400100800090002000037000560000970000004008605006040700080000000";
-
-        it("finds Naked Quad elimination on the X-Cycle (strong link) fixture solve path", () => {
-            const s = new SudokuSolver(X_CYCLE_STRONG);
-            let saw = false;
-            for (let i = 0; i < 400; i++) {
-                const m = s.getNextMove();
-                if (!m) break;
-                if (m.type === "elimination" && m.algorithm === "Naked Quad") {
-                    expect(m.eliminations.length).toBeGreaterThan(0);
-                    saw = true;
-                    break;
-                }
-                if (m.type === "placement") {
-                    s.setSquareValue(m.row, m.col, m.value);
-                } else {
-                    s.applyElimination(m);
-                }
-            }
-            expect(saw).toBe(true);
-        });
     });
 
-    describe("Hidden subset (Pair / Triple / Quad)", () => {
+    describe("Hidden subset (Pair / Triple)", () => {
         const SIMPLE_COLOURING_RULE_4 =
             "090010030800300009070006005080003000052000370000400080900800040600009008010050090";
 
@@ -1456,9 +1433,31 @@ describe("SudokuSolver", () => {
             }
             expect(saw).toBe(true);
         });
+    });
 
+    describe("Naked and Hidden quads (NakedHiddenQuads phase: naked quad, then hidden quad, per house)", () => {
         const HIDDEN_QUAD_FIXTURE =
             "000705006000040081000030050041000008060000020500000430000070000978050000300201000";
+
+        it("finds Naked Quad elimination on the Hidden Quad fixture solve path", () => {
+            const s = new SudokuSolver(HIDDEN_QUAD_FIXTURE);
+            let saw = false;
+            for (let i = 0; i < 400; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "Naked Quad") {
+                    expect(m.eliminations.length).toBeGreaterThan(0);
+                    saw = true;
+                    break;
+                }
+                if (m.type === "placement") {
+                    s.setSquareValue(m.row, m.col, m.value);
+                } else {
+                    s.applyElimination(m);
+                }
+            }
+            expect(saw).toBe(true);
+        });
 
         it("finds Hidden Quad elimination on the Hidden Quad fixture solve path", () => {
             const s = new SudokuSolver(HIDDEN_QUAD_FIXTURE);
