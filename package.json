@@ -1,6 +1,6 @@
 {
     "name": "@wsabol/sudoku-solver",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "description": "TypeScript Sudoku solver module with solve, next move, describe, and validate APIs.",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
