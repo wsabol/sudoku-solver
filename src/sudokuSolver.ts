@@ -11,6 +11,7 @@ export type Algorithm =
     | "Pointing Pair"
     | "Pointing Triple"
     | "X-Wing"
+    | "XY-Wing"
     | "Swordfish"
     | "Naked Pair"
     | "Naked Triple"
@@ -39,6 +40,7 @@ type SearchPhase =
     | "NakedSubset"
     | "HiddenSubset"
     | "Fish"
+    | "XYWing"
     | "Swordfish"
     | "NakedHiddenQuads";
 
@@ -92,6 +94,7 @@ export default class SudokuSolver {
         "NakedSubset",
         "HiddenSubset",
         "Fish",
+        "XYWing",
         "Swordfish",
         "NakedHiddenQuads",
     ];
@@ -425,6 +428,8 @@ export default class SudokuSolver {
                 return this.findPointingPairTriple();
             case "Fish":
                 return this.findFishOfSize(2);
+            case "XYWing":
+                return this.findXYWing();
             case "Swordfish":
                 return this.findFishOfSize(3);
             case "NakedSubset":
@@ -679,6 +684,83 @@ export default class SudokuSolver {
                                 return this.finalizeElimination(eliminations, algorithm, reasoning);
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private cellsSeeEachOther(r1: number, c1: number, r2: number, c2: number): boolean {
+        return r1 === r2 || c1 === c2 || this.boxIndex(r1, c1) === this.boxIndex(r2, c2);
+    }
+
+    /**
+     * XY-Wing: three bi-value cells — pivot {X,Y}, pincer1 {X,Z}, pincer2 {Y,Z} — where the pivot
+     * sees both pincers. Any cell that sees both pincers cannot contain Z.
+     */
+    private findXYWing(): EliminationMove | null {
+        const bivalue: Array<{ row: number; col: number; a: number; b: number }> = [];
+        for (let row = 0; row < 9; row++) {
+            for (let col = 0; col < 9; col++) {
+                const p = this.possiblesGrid[row][col];
+                if (this.board[row][col] === 0 && p.length === 2) {
+                    bivalue.push({ row, col, a: p[0]!, b: p[1]! });
+                }
+            }
+        }
+
+        for (const pivot of bivalue) {
+            const X = pivot.a;
+            const Y = pivot.b;
+
+            // Candidate pincers: bi-value cells that see the pivot and share exactly one digit with it.
+            const pincersX: Array<{ row: number; col: number; Z: number }> = [];
+            const pincersY: Array<{ row: number; col: number; Z: number }> = [];
+
+            for (const cell of bivalue) {
+                if (cell.row === pivot.row && cell.col === pivot.col) continue;
+                if (!this.cellsSeeEachOther(pivot.row, pivot.col, cell.row, cell.col)) continue;
+                const { a, b } = cell;
+                // Cell has {X, Z} where Z ≠ Y
+                if (a === X && b !== Y) pincersX.push({ row: cell.row, col: cell.col, Z: b });
+                if (b === X && a !== Y) pincersX.push({ row: cell.row, col: cell.col, Z: a });
+                // Cell has {Y, Z} where Z ≠ X
+                if (a === Y && b !== X) pincersY.push({ row: cell.row, col: cell.col, Z: b });
+                if (b === Y && a !== X) pincersY.push({ row: cell.row, col: cell.col, Z: a });
+            }
+
+            for (const p1 of pincersX) {
+                for (const p2 of pincersY) {
+                    if (p1.Z !== p2.Z) continue;
+                    if (p1.row === p2.row && p1.col === p2.col) continue;
+                    const Z = p1.Z;
+
+                    const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                    for (let row = 0; row < 9; row++) {
+                        for (let col = 0; col < 9; col++) {
+                            if (row === p1.row && col === p1.col) continue;
+                            if (row === p2.row && col === p2.col) continue;
+                            if (this.board[row][col] !== 0) continue;
+                            if (!this.possiblesGrid[row][col].includes(Z)) continue;
+                            if (
+                                this.cellsSeeEachOther(row, col, p1.row, p1.col) &&
+                                this.cellsSeeEachOther(row, col, p2.row, p2.col)
+                            ) {
+                                eliminations.push({ row, col, value: Z });
+                            }
+                        }
+                    }
+
+                    if (eliminations.length > 0) {
+                        const reasoning =
+                            `XY-Wing: pivot r${pivot.row + 1}c${pivot.col + 1} (${X}/${Y}) links ` +
+                            `pincers r${p1.row + 1}c${p1.col + 1} (${X}/${Z}) and ` +
+                            `r${p2.row + 1}c${p2.col + 1} (${Y}/${Z}). ` +
+                            `Whatever value the pivot takes, ${Z} must appear in one of the pincers, ` +
+                            `so ${Z} cannot appear in any cell seen by both.`;
+                        return this.finalizeElimination(eliminations, "XY-Wing", reasoning);
                     }
                 }
             }

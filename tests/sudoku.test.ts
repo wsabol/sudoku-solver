@@ -49,7 +49,7 @@ const solveAnswers = [
     {
         title: 'Tough',
         input: '018050000060000049900207000700006030000308000030500007000709004450000070000020360',
-        output: '318954726267800549945267003700106035500378000030502007000709054450600970079425360',
+        output: '318954726267831549945267183724196835596378412831542697683719254452683971179425368',
         describe: {
             isValid: true,
             isComplete: false,
@@ -85,7 +85,7 @@ const solveAnswers = [
     {
         title: 'Hard 17 Clue',
         input: '002090300805000000100000000090060040000000058000000001070000200300500000000100000',
-        output: '702090300805000000109000000090060740000000058000000001070000200300500000000100000',
+        output: '742895316835617429169234587598361742613742958427958631971483265386529174254176893',
         describe: {
             isValid: true,
             isComplete: false,
@@ -121,7 +121,7 @@ const solveAnswers = [
     {
         title: 'Hidden Quad',
         input: '000705006000040081000030050041000008060000020500000430000070000978050000300201000',
-        output: '000705306035040781007030050041000008063000120500000437000070000978050010350201070',
+        output: '482715396635942781197638254741523968863497125529186437216879543978354612354261879',
         describe: {
             isValid: true,
             isComplete: false,
@@ -145,7 +145,7 @@ const solveAnswers = [
     {
         title: 'x-wing example',
         input: '007010000000800500180009064600000003071080640400000005840600031005002000000030700',
-        output: '567014008004800517180009064650040003071080640400000005840600031735192486016438750',
+        output: '567314928394826517182759364658247193971583642423961875849675231735192486216438759',
         describe: {
             isValid: true,
             isComplete: false,
@@ -181,7 +181,7 @@ const solveAnswers = [
     {
         title: 'y-wing example',
         input: '645010893738459621219638745597060184481975000326841579902080010803190000164020908',
-        output: '645010893738459621219638745597060184481975000326841579902080010803190000164020908',
+        output: '645712893738459621219638745597263184481975362326841579952386417873194256164527938',
         describe: {
             isValid: true,
             isComplete: false,
@@ -601,7 +601,7 @@ const solveAnswers = [
     {
         title: 'FSF',
         input: '050000070003060800060100300900607001000203000500409007005008040008020700010000050',
-        output: '050830070003060810860100300900607001000203000500409007005008140008521700010046058',
+        output: '050830070003060810860100300900607001000203000500409007605008140008521760010046058',
         describe: {
             isValid: true,
             isComplete: false,
@@ -1502,6 +1502,49 @@ describe("SudokuSolver", () => {
         });
     });
 
+    describe("findXYWing()", () => {
+        // SudokuWiki Y-Wing exemplar — requires an XY-Wing to make progress.
+        const YWING_FIXTURE =
+            "862719354051023700030850100200087005500001000000560003000045030024108500005000841";
+
+        it("finds an XY-Wing elimination on the Y-Wing fixture solve path", () => {
+            const s = new SudokuSolver(YWING_FIXTURE);
+            let saw = false;
+            for (let i = 0; i < 200; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "XY-Wing") {
+                    expect(m.eliminations.length).toBeGreaterThan(0);
+                    expect(m.reasoning).toMatch(
+                        /XY-Wing: pivot r\dc\d \(\d\/\d\) links pincers r\dc\d \(\d\/\d\) and r\dc\d \(\d\/\d\)/,
+                    );
+                    expect(m.reasoning).toContain("cannot appear in any cell seen by both");
+                    saw = true;
+                    break;
+                }
+                s.applyMove(m);
+            }
+            expect(saw).toBe(true);
+        });
+
+        it("returns an elimination move (not placement) with non-empty eliminations array", () => {
+            const s = new SudokuSolver(YWING_FIXTURE);
+            let move = s.getNextMove();
+            while (move !== null && !(move.type === "elimination" && move.algorithm === "XY-Wing")) {
+                s.applyMove(move);
+                move = s.getNextMove();
+            }
+            expect(move).not.toBeNull();
+            if (move !== null && move.type === "elimination") {
+                expect(move.algorithm).toBe("XY-Wing");
+                expect(move.eliminations.length).toBeGreaterThan(0);
+                expect(move.message).toBe(move.message); // message is set
+                expect(move.message).toContain("XY-Wing");
+                expect(move.reasoning.length).toBeGreaterThan(0);
+            }
+        });
+    });
+
     describe("Naked subset (Pair / Triple)", () => {
         const NAKED_TRIPLES_FIXTURE =
             "000000000001900500560310090100600028004000700270004003040068035002005900000000000";
@@ -1579,9 +1622,12 @@ describe("SudokuSolver", () => {
     describe("Naked and Hidden quads (NakedHiddenQuads phase: naked quad, then hidden quad, per house)", () => {
         const HIDDEN_QUAD_FIXTURE =
             "000705006000040081000030050041000008060000020500000430000070000978050000300201000";
+        // Puzzle that requires a Naked Quad (column-based) early in the solve path.
+        const NAKED_QUAD_FIXTURE =
+            "000200600407000000500407000000040007004000200900030000000601008000000401006008000";
 
-        it("finds Naked Quad elimination on the Hidden Quad fixture solve path", () => {
-            const s = new SudokuSolver(HIDDEN_QUAD_FIXTURE);
+        it("finds Naked Quad elimination on the Naked Quad fixture solve path", () => {
+            const s = new SudokuSolver(NAKED_QUAD_FIXTURE);
             let saw = false;
             for (let i = 0; i < 400; i++) {
                 const m = s.getNextMove();
