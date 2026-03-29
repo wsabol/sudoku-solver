@@ -12,6 +12,7 @@ export type Algorithm =
     | "Pointing Triple"
     | "X-Wing"
     | "XY-Wing"
+    | "W-Wing"
     | "Swordfish"
     | "Naked Pair"
     | "Naked Triple"
@@ -41,6 +42,7 @@ type SearchPhase =
     | "HiddenSubset"
     | "Fish"
     | "XYWing"
+    | "WWing"
     | "Swordfish"
     | "NakedHiddenQuads";
 
@@ -95,6 +97,7 @@ export default class SudokuSolver {
         "HiddenSubset",
         "Fish",
         "XYWing",
+        "WWing",
         "Swordfish",
         "NakedHiddenQuads",
     ];
@@ -430,6 +433,8 @@ export default class SudokuSolver {
                 return this.findFishOfSize(2);
             case "XYWing":
                 return this.findXYWing();
+            case "WWing":
+                return this.findWWing();
             case "Swordfish":
                 return this.findFishOfSize(3);
             case "NakedSubset":
@@ -761,6 +766,112 @@ export default class SudokuSolver {
                             `Whatever value the pivot takes, ${Z} must appear in one of the pincers, ` +
                             `so ${Z} cannot appear in any cell seen by both.`;
                         return this.finalizeElimination(eliminations, "XY-Wing", reasoning);
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * W-Wing: two bi-value cells A and D sharing the same candidate pair {W, X}, connected by a
+     * strong link on one of those digits (X) through cells B and C (A sees B, B=X=C strong link,
+     * C sees D). Whatever value A takes, W must appear in one of the two endpoints, so W can be
+     * eliminated from any cell seen by both A and D.
+     */
+    private findWWing(): EliminationMove | null {
+        const bivalue: Array<{ row: number; col: number; a: number; b: number }> = [];
+        for (let row = 0; row < 9; row++) {
+            for (let col = 0; col < 9; col++) {
+                const p = this.possiblesGrid[row][col];
+                if (this.board[row][col] === 0 && p.length === 2) {
+                    bivalue.push({ row, col, a: p[0]!, b: p[1]! });
+                }
+            }
+        }
+        if (bivalue.length < 2) return null;
+
+        // Precompute strong links per digit: pairs of cells that are the only two candidates
+        // for that digit in some house (row, column, or box).
+        type Cell = { row: number; col: number };
+        const strongLinks: Array<[Cell, Cell]>[] = Array.from({ length: 10 }, () => []);
+        for (const house of this.eachHouseInOrder()) {
+            for (let d = 1; d <= 9; d++) {
+                const cands = house.filter(
+                    ({ row, col }) => this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(d)
+                );
+                if (cands.length === 2) {
+                    strongLinks[d]!.push([cands[0]!, cands[1]!]);
+                }
+            }
+        }
+
+        for (let i = 0; i < bivalue.length; i++) {
+            for (let j = i + 1; j < bivalue.length; j++) {
+                const A = bivalue[i]!;
+                const D = bivalue[j]!;
+                if (A.a !== D.a || A.b !== D.b) continue;
+
+                const W = A.a;
+                const X = A.b;
+
+                // Try each digit as the link digit; the other is the digit to eliminate.
+                for (const [linkDigit, elimDigit] of [[X, W], [W, X]] as [number, number][]) {
+                    for (const [B, C] of strongLinks[linkDigit]!) {
+                        // B and C must not coincide with A or D (endpoints already have both digits).
+                        if (
+                            (B.row === A.row && B.col === A.col) ||
+                            (B.row === D.row && B.col === D.col) ||
+                            (C.row === A.row && C.col === A.col) ||
+                            (C.row === D.row && C.col === D.col)
+                        ) continue;
+
+                        // The chain is A -(weak)- B =X= C -(weak)- D.
+                        // Check orientation: A sees B and C sees D, or A sees C and B sees D.
+                        let nearA: Cell | null = null;
+                        let nearD: Cell | null = null;
+                        if (
+                            this.cellsSeeEachOther(A.row, A.col, B.row, B.col) &&
+                            this.cellsSeeEachOther(C.row, C.col, D.row, D.col)
+                        ) {
+                            nearA = B; nearD = C;
+                        } else if (
+                            this.cellsSeeEachOther(A.row, A.col, C.row, C.col) &&
+                            this.cellsSeeEachOther(B.row, B.col, D.row, D.col)
+                        ) {
+                            nearA = C; nearD = B;
+                        }
+                        if (!nearA || !nearD) continue;
+
+                        const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                        for (let row = 0; row < 9; row++) {
+                            for (let col = 0; col < 9; col++) {
+                                if (row === A.row && col === A.col) continue;
+                                if (row === D.row && col === D.col) continue;
+                                if (this.board[row][col] !== 0) continue;
+                                if (!this.possiblesGrid[row][col].includes(elimDigit)) continue;
+                                if (
+                                    this.cellsSeeEachOther(row, col, A.row, A.col) &&
+                                    this.cellsSeeEachOther(row, col, D.row, D.col)
+                                ) {
+                                    eliminations.push({ row, col, value: elimDigit });
+                                }
+                            }
+                        }
+
+                        if (eliminations.length > 0) {
+                            const reasoning =
+                                `W-Wing: r${A.row + 1}c${A.col + 1} and r${D.row + 1}c${D.col + 1} ` +
+                                `both have candidates {${W}/${X}}. ` +
+                                `r${nearA.row + 1}c${nearA.col + 1} and r${nearD.row + 1}c${nearD.col + 1} ` +
+                                `form a strong link on ${linkDigit}. ` +
+                                `r${A.row + 1}c${A.col + 1} sees r${nearA.row + 1}c${nearA.col + 1} ` +
+                                `and r${D.row + 1}c${D.col + 1} sees r${nearD.row + 1}c${nearD.col + 1}, ` +
+                                `so ${elimDigit} must appear in one of the two wing cells, ` +
+                                `eliminating ${elimDigit} from any cell seen by both.`;
+                            return this.finalizeElimination(eliminations, "W-Wing", reasoning);
+                        }
                     }
                 }
             }

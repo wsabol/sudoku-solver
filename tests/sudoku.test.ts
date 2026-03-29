@@ -217,11 +217,11 @@ const solveAnswers = [
     {
         title: 'XYZ-Wing',
         input: '300000000600000048507006300080700100100603002005008060003100906790000005000000003',
-        output: '308001607619037048507006301086705130174693002035018760053100906790360005060009003',
+        output: '348951627619237548527846391986725134174693852235418769453182976791364285862579413',
         describe: {
             isValid: true,
             isComplete: false,
-            message: 'Invalid Puzzle ("no unique solution")',
+            message: 'Unique Solution',
             difficulty: 'Diabolical',
             solutions: 0
         }
@@ -445,11 +445,11 @@ const solveAnswers = [
     {
         title: 'UR type 4b',
         input: '090208001620000090800000000008027000003000400000350100000000502070000034200401060',
-        output: '090208001620000090800000200008027050003000420062354180000000512170502034200401760',
+        output: '495268371621743895837915246948127653513896427762354189384679512176582934259431768',
         describe: {
             isValid: true,
             isComplete: false,
-            message: 'Invalid Puzzle ("no unique solution")',
+            message: 'Unique Solution',
             difficulty: 'Impossible',
             solutions: 0
         }
@@ -505,11 +505,11 @@ const solveAnswers = [
     {
         title: 'HUR type 1',
         input: '002701030000503000009000580030000090408000703010000060046000100000409000090108600',
-        output: '002701030104503000379000581030010090408900713910000060846000109001469308093108640',
+        output: '652781934184593276379246581237614895468952713915837462846375129721469358593128647',
         describe: {
             isValid: true,
             isComplete: false,
-            message: 'Invalid Puzzle ("no unique solution")',
+            message: 'Unique Solution',
             difficulty: 'Diabolical',
             solutions: 0
         }
@@ -613,7 +613,7 @@ const solveAnswers = [
     {
         title: 'FSF Sashimi',
         input: '006301000190000006004090100059600040000030000060004920007050600300000015000408300',
-        output: '006301000190005036034096100059610043401030560063504921907153680300060015615408300',
+        output: '076301000190005036034096100059610043401030560063504921907153680300060015615408300',
         describe: {
             isValid: true,
             isComplete: false,
@@ -1499,6 +1499,50 @@ describe("SudokuSolver", () => {
                 }
             }
             expect(saw).toBe(true);
+        });
+    });
+
+    describe("findWWing()", () => {
+        // Puzzle where W-Wing fires: r7c6 and r9c7 both have {2/4},
+        // strong link on 4 at r8c6 and r8c7, eliminates 2 from r7c7.
+        const WWING_FIXTURE =
+            "300000000600000048507006300080700100100603002005008060003100906790000005000000003";
+
+        it("finds a W-Wing elimination on the W-Wing fixture solve path", () => {
+            const s = new SudokuSolver(WWING_FIXTURE);
+            let saw = false;
+            for (let i = 0; i < 200; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "W-Wing") {
+                    expect(m.eliminations.length).toBeGreaterThan(0);
+                    expect(m.reasoning).toMatch(
+                        /W-Wing: r\dc\d+ and r\dc\d+ both have candidates \{\d+\/\d+\}/,
+                    );
+                    expect(m.reasoning).toContain("form a strong link on");
+                    expect(m.reasoning).toContain("eliminating");
+                    saw = true;
+                    break;
+                }
+                s.applyMove(m);
+            }
+            expect(saw).toBe(true);
+        });
+
+        it("returns an elimination move with non-empty eliminations array", () => {
+            const s = new SudokuSolver(WWING_FIXTURE);
+            let move = s.getNextMove();
+            while (move !== null && !(move.type === "elimination" && move.algorithm === "W-Wing")) {
+                s.applyMove(move);
+                move = s.getNextMove();
+            }
+            expect(move).not.toBeNull();
+            if (move !== null && move.type === "elimination") {
+                expect(move.algorithm).toBe("W-Wing");
+                expect(move.eliminations.length).toBeGreaterThan(0);
+                expect(move.message).toContain("W-Wing");
+                expect(move.reasoning.length).toBeGreaterThan(0);
+            }
         });
     });
 
