@@ -42,10 +42,11 @@ Solver internals:
    1. `NakedSingle`
    2. `HiddenSingle`
    3. `Pointing`
-   4. `NakedSubset` (pairs/triples only)
-   5. `HiddenSubset` (pairs/triples only)
-   6. `Fish` (classic row/column `X-Wing` only)
-   7. `Swordfish` (3×3 fish: 3 base rows/columns whose candidates span exactly 3 cover columns/rows)
-   8. `NakedHiddenQuads` (per house: try `Naked Quad`, then `Hidden Quad`).
+   4. `BoxLineReduction` (if all candidates for a digit in a row/column lie within one box, eliminate from rest of that box)
+   5. `NakedSubset` (pairs/triples only)
+   6. `HiddenSubset` (pairs/triples only)
+   7. `Fish` (classic row/column `X-Wing` only)
+   8. `Swordfish` (3×3 fish: 3 base rows/columns whose candidates span exactly 3 cover columns/rows)
+   9. `NakedHiddenQuads` (per house: try `Naked Quad`, then `Hidden Quad`).
 - `Move.algorithm` is the specific label (e.g. `"Last Digit"`, `"Full House"`, `"Naked Pair"`); naked-single path can upgrade to Full House / Last Digit.
-- Reasoning examples: pointing names `box` index (1–9, `boxNumber`); naked subset pattern `Naked Pair 7/9 in row 5 … same row` (digits `/`-sorted, house = row | column | box); hidden subset pattern `Hidden Pair 8/9 in column 5: in that column, those digits appear only in r3c5, r5c5, …` (reserved cells `rXcY`, digits `/`-sorted); Swordfish pattern `Swordfish on 9: rows 3, 7 and 8 have 9 only in columns 1, 5 and 8, so 9 cannot appear elsewhere in those columns.` (column-based variant swaps "rows"/"columns").
+- Reasoning examples: pointing names `box` index (1–9, `boxNumber`); box/line reduction pattern `In row R, all candidates for D lie within box B, so D cannot appear elsewhere in box B outside that row.` (column variant replaces "row" with "column"); naked subset pattern `Naked Pair 7/9 in row 5 … same row` (digits `/`-sorted, house = row | column | box); hidden subset pattern `Hidden Pair 8/9 in column 5: in that column, those digits appear only in r3c5, r5c5, …` (reserved cells `rXcY`, digits `/`-sorted); Swordfish pattern `Swordfish on 9: rows 3, 7 and 8 have 9 only in columns 1, 5 and 8, so 9 cannot appear elsewhere in those columns.` (column-based variant swaps "rows"/"columns").

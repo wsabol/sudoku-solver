@@ -10,6 +10,7 @@ export type Algorithm =
     | "Hidden Single"
     | "Pointing Pair"
     | "Pointing Triple"
+    | "Box/Line Reduction"
     | "X-Wing"
     | "XY-Wing"
     | "W-Wing"
@@ -38,6 +39,7 @@ type SearchPhase =
     | "NakedSingle"
     | "HiddenSingle"
     | "Pointing"
+    | "BoxLineReduction"
     | "NakedSubset"
     | "HiddenSubset"
     | "Fish"
@@ -93,6 +95,7 @@ export default class SudokuSolver {
         "NakedSingle",
         "HiddenSingle",
         "Pointing",
+        "BoxLineReduction",
         "NakedSubset",
         "HiddenSubset",
         "Fish",
@@ -429,6 +432,8 @@ export default class SudokuSolver {
                 return this.findHiddenSingle();
             case "Pointing":
                 return this.findPointingPairTriple();
+            case "BoxLineReduction":
+                return this.findBoxLineReduction();
             case "Fish":
                 return this.findFishOfSize(2);
             case "XYWing":
@@ -620,6 +625,79 @@ export default class SudokuSolver {
                 }
             }
         }
+        return null;
+    }
+
+    /**
+     * Box/Line Reduction (Claiming): if all candidates for a digit in a row or column lie within
+     * a single box, that digit can be eliminated from the rest of that box outside the row/column.
+     * This is the complement of Pointing Pairs/Triples.
+     */
+    private findBoxLineReduction(): EliminationMove | null {
+        for (let row = 0; row < 9; row++) {
+            for (let digit = 1; digit <= 9; digit++) {
+                const cells: Array<{ row: number; col: number }> = [];
+                for (let col = 0; col < 9; col++) {
+                    if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)) {
+                        cells.push({ row, col });
+                    }
+                }
+                if (cells.length < 2) continue;
+
+                const firstBox = this.boxIndex(cells[0]!.row, cells[0]!.col);
+                if (!cells.every((c) => this.boxIndex(c.row, c.col) === firstBox)) continue;
+
+                const boxStartRow = Math.floor(firstBox / 3) * 3;
+                const boxStartCol = (firstBox % 3) * 3;
+                const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                for (let r = boxStartRow; r < boxStartRow + 3; r++) {
+                    if (r === row) continue;
+                    for (let c = boxStartCol; c < boxStartCol + 3; c++) {
+                        if (this.board[r][c] === 0 && this.possiblesGrid[r][c].includes(digit)) {
+                            eliminations.push({ row: r, col: c, value: digit });
+                        }
+                    }
+                }
+                if (eliminations.length > 0) {
+                    const boxNum = firstBox + 1;
+                    const reasoning = `In row ${row + 1}, all candidates for ${digit} lie within box ${boxNum}, so ${digit} cannot appear elsewhere in box ${boxNum} outside that row.`;
+                    return this.finalizeElimination(eliminations, "Box/Line Reduction", reasoning);
+                }
+            }
+        }
+
+        for (let col = 0; col < 9; col++) {
+            for (let digit = 1; digit <= 9; digit++) {
+                const cells: Array<{ row: number; col: number }> = [];
+                for (let row = 0; row < 9; row++) {
+                    if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)) {
+                        cells.push({ row, col });
+                    }
+                }
+                if (cells.length < 2) continue;
+
+                const firstBox = this.boxIndex(cells[0]!.row, cells[0]!.col);
+                if (!cells.every((c) => this.boxIndex(c.row, c.col) === firstBox)) continue;
+
+                const boxStartRow = Math.floor(firstBox / 3) * 3;
+                const boxStartCol = (firstBox % 3) * 3;
+                const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                for (let r = boxStartRow; r < boxStartRow + 3; r++) {
+                    for (let c = boxStartCol; c < boxStartCol + 3; c++) {
+                        if (c === col) continue;
+                        if (this.board[r][c] === 0 && this.possiblesGrid[r][c].includes(digit)) {
+                            eliminations.push({ row: r, col: c, value: digit });
+                        }
+                    }
+                }
+                if (eliminations.length > 0) {
+                    const boxNum = firstBox + 1;
+                    const reasoning = `In column ${col + 1}, all candidates for ${digit} lie within box ${boxNum}, so ${digit} cannot appear elsewhere in box ${boxNum} outside that column.`;
+                    return this.finalizeElimination(eliminations, "Box/Line Reduction", reasoning);
+                }
+            }
+        }
+
         return null;
     }
 

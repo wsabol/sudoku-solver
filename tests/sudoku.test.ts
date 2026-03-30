@@ -133,7 +133,7 @@ const solveAnswers = [
     {
         title: 'Intersection Removal',
         input: '000921003009000060000000500080403006007000800500700040003000000020000700800195000',
-        output: '700921483009500060008000500080453076007000800500700040003000000020000700870195000',
+        output: '700921483009508067008000509080453076007010805500780341603000000020000700874195632',
         describe: {
             isValid: true,
             isComplete: false,
@@ -1359,6 +1359,83 @@ describe("SudokuSolver", () => {
 
         it("solve() makes progress after pointing eliminations", () => {
             const s = new SudokuSolver(POINTING_PAIR_BOARD);
+            const initialEmpty = s.countEmptyCells();
+            s.solve();
+            expect(s.countEmptyCells()).toBeLessThan(initialEmpty);
+        });
+    });
+
+    describe("findBoxLineReduction()", () => {
+        // This fixture is the classic "Intersection Removal" puzzle that requires both
+        // Pointing and Box/Line Reduction to make progress.
+        const BLR_BOARD =
+            "000921003009000060000000500080403006007000800500700040003000000020000700800195000";
+
+        it("finds a Box/Line Reduction elimination move on the solve path", () => {
+            const s = new SudokuSolver(BLR_BOARD);
+            let saw = false;
+            for (let i = 0; i < 100; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "Box/Line Reduction") {
+                    expect(m.eliminations.length).toBeGreaterThan(0);
+                    for (const e of m.eliminations) {
+                        expect(e.row).toBeGreaterThanOrEqual(0);
+                        expect(e.col).toBeGreaterThanOrEqual(0);
+                        expect(e.value).toBeGreaterThanOrEqual(1);
+                        expect(e.value).toBeLessThanOrEqual(9);
+                    }
+                    expect(m.message).toContain("Box/Line Reduction");
+                    expect(m.reasoning).toMatch(/In (row|column) \d+, all candidates for \d+ lie within box \d+/);
+                    saw = true;
+                    break;
+                }
+                s.applyMove(m);
+            }
+            expect(saw).toBe(true);
+        });
+
+        it("applyElimination removes Box/Line Reduction candidates from possiblesGrid", () => {
+            const s = new SudokuSolver(BLR_BOARD);
+            let blrMove = null;
+            for (let i = 0; i < 100; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "Box/Line Reduction") {
+                    blrMove = m;
+                    break;
+                }
+                s.applyMove(m);
+            }
+            expect(blrMove).not.toBeNull();
+            if (blrMove !== null && blrMove.type === "elimination") {
+                s.applyElimination(blrMove);
+                for (const { row, col, value } of blrMove.eliminations) {
+                    expect(s.getPossibles(row, col)).not.toContain(value);
+                }
+            }
+        });
+
+        it("reasoning distinguishes row-based vs column-based reductions", () => {
+            const s = new SudokuSolver(BLR_BOARD);
+            let rowSeen = false;
+            let colSeen = false;
+            for (let i = 0; i < 200; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "Box/Line Reduction") {
+                    if (m.reasoning.startsWith("In row")) rowSeen = true;
+                    if (m.reasoning.startsWith("In column")) colSeen = true;
+                }
+                s.applyMove(m);
+                if (rowSeen && colSeen) break;
+            }
+            // At least one row-based reduction must appear on this fixture's solve path.
+            expect(rowSeen).toBe(true);
+        });
+
+        it("solve() makes progress after Box/Line Reduction eliminations", () => {
+            const s = new SudokuSolver(BLR_BOARD);
             const initialEmpty = s.countEmptyCells();
             s.solve();
             expect(s.countEmptyCells()).toBeLessThan(initialEmpty);
