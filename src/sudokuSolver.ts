@@ -53,6 +53,29 @@ const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 /** Row/column/box label for a set of cells that all lie in one house. */
 type HouseKind = "row" | "column" | "box";
 
+/**
+ * A Locked Set of size N: exactly N cells in one house whose union of candidates is exactly N
+ * digits. The defining invariant of every Naked Subset (and, dually, every Hidden Subset).
+ */
+type LockedSet = {
+    cells: { row: number; col: number }[];
+    digits: Set<number>;    // size === cells.length
+    house: HouseKind;
+    wherePhrase: string;    // e.g. "row 3", "box 5"
+};
+
+/**
+ * An Almost Locked Set of size N: exactly N cells (all visible to one another via a shared house)
+ * whose union of candidates is exactly N+1 digits — one degree of freedom away from being a
+ * Locked Set. Bi-value cells are ALS of size 1 (2 candidates, 1 cell).
+ *
+ * ALS are the foundational primitive for ALS-XZ, ALS-XY-Wing, ALS-Chain, and Sue-de-Coq.
+ */
+type AlmostLockedSet = {
+    cells: { row: number; col: number }[];
+    digits: Set<number>;    // size === cells.length + 1
+};
+
 function uniqueCellCoordinates(items: ReadonlyArray<{ row: number; col: number }>): { row: number; col: number }[] {
     const seen = new Set<string>();
     const out: { row: number; col: number }[] = [];
@@ -553,16 +576,11 @@ export default class SudokuSolver {
     }
 
     private findHiddenSingleInBox(ibox: number): PlacementMove | null {
+        const boxHouse = Array.from({ length: 9 }, (_, idx) => this.boxToPuzzle(ibox, idx));
         for (let value = 1; value <= 9; value++) {
-            const candidates: Array<{ row: number; col: number }> = [];
-            for (let idx = 0; idx < 9; idx++) {
-                const { row, col } = this.boxToPuzzle(ibox, idx);
-                if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(value)) {
-                    candidates.push({ row, col });
-                }
-            }
+            const candidates = this.getCandidateCellsInHouse(boxHouse, value);
             if (candidates.length === 1) {
-                const { row: r, col: c } = candidates[0];
+                const { row: r, col: c } = candidates[0]!;
                 let algorithm: Algorithm = "Hidden Single";
                 let reasoning = this.hiddenSingleReasoning(`box ${boxNumber(r, c)}`, value);
                 if (this.countPlaced(value) === 8) {
@@ -580,14 +598,9 @@ export default class SudokuSolver {
             const boxStartRow = Math.floor(ibox / 3) * 3;
             const boxStartCol = (ibox % 3) * 3;
             const boxNum = ibox + 1;
+            const boxHouse = Array.from({ length: 9 }, (_, idx) => this.boxToPuzzle(ibox, idx));
             for (let digit = 1; digit <= 9; digit++) {
-                const cells: Array<{ row: number; col: number }> = [];
-                for (let idx = 0; idx < 9; idx++) {
-                    const { row, col } = this.boxToPuzzle(ibox, idx);
-                    if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)) {
-                        cells.push({ row, col });
-                    }
-                }
+                const cells = this.getCandidateCellsInHouse(boxHouse, digit);
                 if (cells.length < 2) continue;
 
                 if (cells.every((c) => c.row === cells[0].row)) {
@@ -634,66 +647,29 @@ export default class SudokuSolver {
      * This is the complement of Pointing Pairs/Triples.
      */
     private findBoxLineReduction(): EliminationMove | null {
-        for (let row = 0; row < 9; row++) {
-            for (let digit = 1; digit <= 9; digit++) {
-                const cells: Array<{ row: number; col: number }> = [];
-                for (let col = 0; col < 9; col++) {
-                    if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)) {
-                        cells.push({ row, col });
+        for (const byRow of [true, false]) {
+            const lineLabel = byRow ? "row" : "column";
+            for (let lineIdx = 0; lineIdx < 9; lineIdx++) {
+                const lineHouse = Array.from({ length: 9 }, (_, crossIdx) =>
+                    byRow ? { row: lineIdx, col: crossIdx } : { row: crossIdx, col: lineIdx }
+                );
+                for (let digit = 1; digit <= 9; digit++) {
+                    const cells = this.getCandidateCellsInHouse(lineHouse, digit);
+                    if (cells.length < 2) continue;
+
+                    const firstBox = this.boxIndex(cells[0]!.row, cells[0]!.col);
+                    if (!cells.every((c) => this.boxIndex(c.row, c.col) === firstBox)) continue;
+
+                    const boxHouse = Array.from({ length: 9 }, (_, idx) => this.boxToPuzzle(firstBox, idx));
+                    const eliminations = this.getCandidateCellsInHouse(boxHouse, digit)
+                        .filter(({ row, col }) => byRow ? row !== lineIdx : col !== lineIdx)
+                        .map(({ row, col }) => ({ row, col, value: digit }));
+
+                    if (eliminations.length > 0) {
+                        const boxNum = firstBox + 1;
+                        const reasoning = `In ${lineLabel} ${lineIdx + 1}, all candidates for ${digit} lie within box ${boxNum}, so ${digit} cannot appear elsewhere in box ${boxNum} outside that ${lineLabel}.`;
+                        return this.finalizeElimination(eliminations, "Box/Line Reduction", reasoning);
                     }
-                }
-                if (cells.length < 2) continue;
-
-                const firstBox = this.boxIndex(cells[0]!.row, cells[0]!.col);
-                if (!cells.every((c) => this.boxIndex(c.row, c.col) === firstBox)) continue;
-
-                const boxStartRow = Math.floor(firstBox / 3) * 3;
-                const boxStartCol = (firstBox % 3) * 3;
-                const eliminations: Array<{ row: number; col: number; value: number }> = [];
-                for (let r = boxStartRow; r < boxStartRow + 3; r++) {
-                    if (r === row) continue;
-                    for (let c = boxStartCol; c < boxStartCol + 3; c++) {
-                        if (this.board[r][c] === 0 && this.possiblesGrid[r][c].includes(digit)) {
-                            eliminations.push({ row: r, col: c, value: digit });
-                        }
-                    }
-                }
-                if (eliminations.length > 0) {
-                    const boxNum = firstBox + 1;
-                    const reasoning = `In row ${row + 1}, all candidates for ${digit} lie within box ${boxNum}, so ${digit} cannot appear elsewhere in box ${boxNum} outside that row.`;
-                    return this.finalizeElimination(eliminations, "Box/Line Reduction", reasoning);
-                }
-            }
-        }
-
-        for (let col = 0; col < 9; col++) {
-            for (let digit = 1; digit <= 9; digit++) {
-                const cells: Array<{ row: number; col: number }> = [];
-                for (let row = 0; row < 9; row++) {
-                    if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)) {
-                        cells.push({ row, col });
-                    }
-                }
-                if (cells.length < 2) continue;
-
-                const firstBox = this.boxIndex(cells[0]!.row, cells[0]!.col);
-                if (!cells.every((c) => this.boxIndex(c.row, c.col) === firstBox)) continue;
-
-                const boxStartRow = Math.floor(firstBox / 3) * 3;
-                const boxStartCol = (firstBox % 3) * 3;
-                const eliminations: Array<{ row: number; col: number; value: number }> = [];
-                for (let r = boxStartRow; r < boxStartRow + 3; r++) {
-                    for (let c = boxStartCol; c < boxStartCol + 3; c++) {
-                        if (c === col) continue;
-                        if (this.board[r][c] === 0 && this.possiblesGrid[r][c].includes(digit)) {
-                            eliminations.push({ row: r, col: c, value: digit });
-                        }
-                    }
-                }
-                if (eliminations.length > 0) {
-                    const boxNum = firstBox + 1;
-                    const reasoning = `In column ${col + 1}, all candidates for ${digit} lie within box ${boxNum}, so ${digit} cannot appear elsewhere in box ${boxNum} outside that column.`;
-                    return this.finalizeElimination(eliminations, "Box/Line Reduction", reasoning);
                 }
             }
         }
@@ -706,14 +682,10 @@ export default class SudokuSolver {
      * Returns only empty cells where `digit` is still a candidate.
      */
     private coverIndicesForLine(lineIdx: number, digit: number, byRow: boolean): number[] {
-        const result: number[] = [];
-        for (let crossIdx = 0; crossIdx < 9; crossIdx++) {
-            const [row, col] = byRow ? [lineIdx, crossIdx] : [crossIdx, lineIdx];
-            if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)) {
-                result.push(crossIdx);
-            }
-        }
-        return result;
+        const house = Array.from({ length: 9 }, (_, crossIdx) =>
+            byRow ? { row: lineIdx, col: crossIdx } : { row: crossIdx, col: lineIdx }
+        );
+        return this.getCandidateCellsInHouse(house, digit).map(({ row, col }) => byRow ? col : row);
     }
 
     /**
@@ -779,20 +751,35 @@ export default class SudokuSolver {
         return r1 === r2 || c1 === c2 || this.boxIndex(r1, c1) === this.boxIndex(r2, c2);
     }
 
+    /** Empty cells in `house` that have `digit` as a candidate. */
+    private getCandidateCellsInHouse(
+        house: ReadonlyArray<{ row: number; col: number }>,
+        digit: number
+    ): { row: number; col: number }[] {
+        return house.filter(
+            ({ row, col }) => this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(digit)
+        );
+    }
+
+    /**
+     * All empty cells with exactly two candidates (ALS of size 1), as a convenience view over
+     * `enumerateALS(1)`. The `a`/`b` fields are the two candidates in sorted order.
+     * Used by XY-Wing and W-Wing; future ALS-based techniques should consume `enumerateALS()`.
+     */
+    private getBivalueCells(): Array<{ row: number; col: number; a: number; b: number }> {
+        return this.enumerateALS(1).map(({ cells, digits }) => {
+            const [a, b] = [...digits].sort((x, y) => x - y) as [number, number];
+            const { row, col } = cells[0]!;
+            return { row, col, a, b };
+        });
+    }
+
     /**
      * XY-Wing: three bi-value cells — pivot {X,Y}, pincer1 {X,Z}, pincer2 {Y,Z} — where the pivot
      * sees both pincers. Any cell that sees both pincers cannot contain Z.
      */
     private findXYWing(): EliminationMove | null {
-        const bivalue: Array<{ row: number; col: number; a: number; b: number }> = [];
-        for (let row = 0; row < 9; row++) {
-            for (let col = 0; col < 9; col++) {
-                const p = this.possiblesGrid[row][col];
-                if (this.board[row][col] === 0 && p.length === 2) {
-                    bivalue.push({ row, col, a: p[0]!, b: p[1]! });
-                }
-            }
-        }
+        const bivalue = this.getBivalueCells();
 
         for (const pivot of bivalue) {
             const X = pivot.a;
@@ -859,15 +846,7 @@ export default class SudokuSolver {
      * eliminated from any cell seen by both A and D.
      */
     private findWWing(): EliminationMove | null {
-        const bivalue: Array<{ row: number; col: number; a: number; b: number }> = [];
-        for (let row = 0; row < 9; row++) {
-            for (let col = 0; col < 9; col++) {
-                const p = this.possiblesGrid[row][col];
-                if (this.board[row][col] === 0 && p.length === 2) {
-                    bivalue.push({ row, col, a: p[0]!, b: p[1]! });
-                }
-            }
-        }
+        const bivalue = this.getBivalueCells();
         if (bivalue.length < 2) return null;
 
         // Precompute strong links per digit: pairs of cells that are the only two candidates
@@ -976,6 +955,72 @@ export default class SudokuSolver {
         return houses;
     }
 
+    /**
+     * Enumerate all Almost Locked Sets (ALS) of sizes 1..maxSize across all 27 houses.
+     *
+     * An ALS of size N is a set of N cells (all lying in one house) whose union of candidates
+     * has exactly N+1 digits. A bi-value cell is an ALS of size 1. Results are deduplicated:
+     * if the same cell set is found via multiple houses (e.g. a bi-value cell appears in its row,
+     * column, and box), it appears only once.
+     *
+     * The returned collection is the shared primitive for ALS-based techniques (ALS-XZ Rule,
+     * ALS-XY-Wing, ALS-Chain) and makes `getBivalueCells()` a special case: `enumerateALS(1)`
+     * returns all bi-value cells.
+     */
+    private enumerateALS(maxSize: number = 4): AlmostLockedSet[] {
+        const seen = new Set<string>();
+        const result: AlmostLockedSet[] = [];
+
+        for (const house of this.eachHouseInOrder()) {
+            const empties = house.filter(
+                ({ row, col }) => this.board[row][col] === 0 && this.possiblesGrid[row][col].length > 0
+            );
+
+            const indices: number[] = [];
+            const digits = new Set<number>();
+
+            const dfs = (start: number): void => {
+                if (indices.length > 0) {
+                    if (digits.size === indices.length + 1) {
+                        const cells = indices.map((i) => empties[i]!);
+                        const key = cells
+                            .map(({ row, col }) => row * 9 + col)
+                            .sort((a, b) => a - b)
+                            .join(",");
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            result.push({ cells, digits: new Set(digits) });
+                        }
+                    }
+                    // Prune: digit count already exceeds ALS threshold; adding more cells can only
+                    // increase both the cell count and the digit count by the same amount or more,
+                    // so the invariant digits.size === cells.length + 1 cannot be recovered.
+                    if (digits.size > indices.length + 1) return;
+                }
+                if (indices.length === maxSize) return;
+
+                for (let i = start; i < empties.length; i++) {
+                    const { row, col } = empties[i]!;
+                    const added: number[] = [];
+                    for (const d of this.possiblesGrid[row][col]) {
+                        if (!digits.has(d)) {
+                            digits.add(d);
+                            added.push(d);
+                        }
+                    }
+                    indices.push(i);
+                    dfs(i + 1);
+                    indices.pop();
+                    for (const d of added) digits.delete(d);
+                }
+            };
+
+            dfs(0);
+        }
+
+        return result;
+    }
+
     private findNakedSubsetElimination(): EliminationMove | null {
         for (const houseCells of this.eachHouseInOrder()) {
             for (let k = 2; k <= 3; k++) {
@@ -999,60 +1044,71 @@ export default class SudokuSolver {
         return { wherePhrase: `box ${boxNumber(h.row, h.col)}`, sameKindWord: "box" };
     }
 
-    private tryNakedSubsetInHouse(houseCells: { row: number; col: number }[], k: number): EliminationMove | null {
+    /**
+     * Enumerate all naked locked sets of size k in `houseCells`: groups of k empty cells whose
+     * candidate union is exactly k digits. The result drives elimination in `tryNakedSubsetInHouse`
+     * and can be queried independently by future algorithms.
+     */
+    private findNakedLockedSetsInHouse(
+        houseCells: { row: number; col: number }[],
+        k: number
+    ): LockedSet[] {
         const empties = houseCells.filter(
             ({ row, col }) => this.board[row][col] === 0 && this.possiblesGrid[row][col].length > 0
         );
-        if (empties.length < k) {
-            return null;
-        }
-        const algorithm: Algorithm = k === 2 ? "Naked Pair" : k === 3 ? "Naked Triple" : "Naked Quad";
-        const { wherePhrase, sameKindWord } = this.getHouseContext(houseCells);
-        const n = empties.length;
-        const indices: number[] = [];
+        if (empties.length < k) return [];
 
-        const dfs = (start: number): EliminationMove | null => {
+        const { wherePhrase, sameKindWord: house } = this.getHouseContext(houseCells);
+        const result: LockedSet[] = [];
+        const indices: number[] = [];
+        const union = new Set<number>();
+
+        const dfs = (start: number): void => {
             if (indices.length === k) {
-                const subset = indices.map((i) => empties[i]!);
-                const union = new Set<number>();
-                for (const { row, col } of subset) {
-                    for (const v of this.possiblesGrid[row][col]) {
-                        union.add(v);
-                    }
+                if (union.size === k) {
+                    result.push({ cells: indices.map((i) => empties[i]!), digits: new Set(union), house, wherePhrase });
                 }
-                if (union.size !== k) {
-                    return null;
-                }
-                const subsetKeys = new Set(subset.map(({ row, col }) => row * 9 + col));
-                const eliminations: Array<{ row: number; col: number; value: number }> = [];
-                for (const { row, col } of houseCells) {
-                    if (this.board[row][col] !== 0 || subsetKeys.has(row * 9 + col)) {
-                        continue;
-                    }
-                    const poss = this.possiblesGrid[row][col];
-                    for (const d of union) {
-                        if (poss.includes(d)) {
-                            eliminations.push({ row, col, value: d });
-                        }
-                    }
-                }
-                if (eliminations.length === 0) {
-                    return null;
-                }
-                const digitStr = [...union].sort((a, b) => a - b).join("/");
-                const reasoning = `${algorithm} ${digitStr} in ${wherePhrase} means those digits can be eliminated from the other cells in that same ${sameKindWord}.`;
-                return this.finalizeElimination(eliminations, algorithm, reasoning);
+                return;
             }
-            for (let i = start; i < n; i++) {
+            // Prune: digit count already exceeds k; adding more cells can't reduce it.
+            if (union.size > k) return;
+            for (let i = start; i < empties.length; i++) {
+                const { row, col } = empties[i]!;
+                const added: number[] = [];
+                for (const v of this.possiblesGrid[row][col]) {
+                    if (!union.has(v)) { union.add(v); added.push(v); }
+                }
                 indices.push(i);
-                const res = dfs(i + 1);
+                dfs(i + 1);
                 indices.pop();
-                if (res) return res;
+                for (const v of added) union.delete(v);
             }
-            return null;
         };
 
-        return dfs(0);
+        dfs(0);
+        return result;
+    }
+
+    private tryNakedSubsetInHouse(houseCells: { row: number; col: number }[], k: number): EliminationMove | null {
+        const algorithm: Algorithm = k === 2 ? "Naked Pair" : k === 3 ? "Naked Triple" : "Naked Quad";
+        for (const ls of this.findNakedLockedSetsInHouse(houseCells, k)) {
+            const subsetKeys = new Set(ls.cells.map(({ row, col }) => row * 9 + col));
+            const eliminations: Array<{ row: number; col: number; value: number }> = [];
+            for (const { row, col } of houseCells) {
+                if (this.board[row][col] !== 0 || subsetKeys.has(row * 9 + col)) continue;
+                for (const d of ls.digits) {
+                    if (this.possiblesGrid[row][col].includes(d)) {
+                        eliminations.push({ row, col, value: d });
+                    }
+                }
+            }
+            if (eliminations.length > 0) {
+                const digitStr = [...ls.digits].sort((a, b) => a - b).join("/");
+                const reasoning = `${algorithm} ${digitStr} in ${ls.wherePhrase} means those digits can be eliminated from the other cells in that same ${ls.house}.`;
+                return this.finalizeElimination(eliminations, algorithm, reasoning);
+            }
+        }
+        return null;
     }
 
     private findHiddenSubsetElimination(): EliminationMove | null {
@@ -1076,68 +1132,72 @@ export default class SudokuSolver {
         return null;
     }
 
-    private tryHiddenSubsetInHouse(houseCells: { row: number; col: number }[], k: number): EliminationMove | null {
-        const algorithm: Algorithm = k === 2 ? "Hidden Pair" : k === 3 ? "Hidden Triple" : "Hidden Quad";
-        const { wherePhrase, sameKindWord } = this.getHouseContext(houseCells);
+    /**
+     * Enumerate all hidden locked sets of size k in `houseCells`: groups of k digits that appear
+     * only in exactly k empty cells of the house. The result drives elimination in
+     * `tryHiddenSubsetInHouse` and can be queried independently by future algorithms.
+     */
+    private findHiddenLockedSetsInHouse(
+        houseCells: { row: number; col: number }[],
+        k: number
+    ): LockedSet[] {
+        const { wherePhrase, sameKindWord: house } = this.getHouseContext(houseCells);
+        const result: LockedSet[] = [];
         const digitIndices: number[] = [];
 
-        const dfsDigits = (start: number): EliminationMove | null => {
+        const dfs = (start: number): void => {
             if (digitIndices.length === k) {
                 const digits = digitIndices.map((i) => COMPLETE[i]!);
-                const digitSet = new Set(digits);
-                for (const d of digits) {
-                    let seen = false;
-                    for (const { row, col } of houseCells) {
-                        if (this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(d)) {
-                            seen = true;
-                            break;
-                        }
-                    }
-                    if (!seen) {
-                        return null;
-                    }
+                // Every chosen digit must appear in at least one empty cell of the house.
+                const allPresent = digits.every((d) =>
+                    houseCells.some(
+                        ({ row, col }) =>
+                            this.board[row][col] === 0 && this.possiblesGrid[row][col].includes(d)
+                    )
+                );
+                if (!allPresent) return;
+                // Cells that contain at least one of the k digits — the "reserved" cells.
+                const cells = houseCells.filter(
+                    ({ row, col }) =>
+                        this.board[row][col] === 0 &&
+                        digits.some((d) => this.possiblesGrid[row][col].includes(d))
+                );
+                // Hidden set condition: the k digits are confined to exactly k cells.
+                if (cells.length === k) {
+                    result.push({ cells, digits: new Set(digits), house, wherePhrase });
                 }
-                const reserved: { row: number; col: number }[] = [];
-                for (const { row, col } of houseCells) {
-                    if (this.board[row][col] !== 0) {
-                        continue;
-                    }
-                    for (const d of digits) {
-                        if (this.possiblesGrid[row][col].includes(d)) {
-                            reserved.push({ row, col });
-                            break;
-                        }
-                    }
-                }
-                if (reserved.length !== k) {
-                    return null;
-                }
-                const eliminations: Array<{ row: number; col: number; value: number }> = [];
-                for (const { row, col } of reserved) {
-                    for (const v of this.possiblesGrid[row][col]) {
-                        if (!digitSet.has(v)) {
-                            eliminations.push({ row, col, value: v });
-                        }
-                    }
-                }
-                if (eliminations.length === 0) {
-                    return null;
-                }
-                const digitStr = [...digits].sort((a, b) => a - b).join("/");
-                const cellPhrase = reserved.map(({ row, col }) => `r${row + 1}c${col + 1}`).join(", ");
-                const reasoning = `${algorithm} ${digitStr} in ${wherePhrase}: in that ${sameKindWord}, those digits appear only in ${cellPhrase}, so candidates other than ${digitStr} can be removed from those cells.`;
-                return this.finalizeElimination(eliminations, algorithm, reasoning);
+                return;
             }
             for (let i = start; i < 9; i++) {
                 digitIndices.push(i);
-                const res = dfsDigits(i + 1);
+                dfs(i + 1);
                 digitIndices.pop();
-                if (res) return res;
             }
-            return null;
         };
 
-        return dfsDigits(0);
+        dfs(0);
+        return result;
+    }
+
+    private tryHiddenSubsetInHouse(houseCells: { row: number; col: number }[], k: number): EliminationMove | null {
+        const algorithm: Algorithm = k === 2 ? "Hidden Pair" : k === 3 ? "Hidden Triple" : "Hidden Quad";
+        for (const ls of this.findHiddenLockedSetsInHouse(houseCells, k)) {
+            const eliminations: Array<{ row: number; col: number; value: number }> = [];
+            for (const { row, col } of ls.cells) {
+                for (const v of this.possiblesGrid[row][col]) {
+                    if (!ls.digits.has(v)) {
+                        eliminations.push({ row, col, value: v });
+                    }
+                }
+            }
+            if (eliminations.length > 0) {
+                const digitStr = [...ls.digits].sort((a, b) => a - b).join("/");
+                const cellPhrase = ls.cells.map(({ row, col }) => `r${row + 1}c${col + 1}`).join(", ");
+                const reasoning = `${algorithm} ${digitStr} in ${ls.wherePhrase}: in that ${ls.house}, those digits appear only in ${cellPhrase}, so candidates other than ${digitStr} can be removed from those cells.`;
+                return this.finalizeElimination(eliminations, algorithm, reasoning);
+            }
+        }
+        return null;
     }
 
     private findHiddenSingle(): PlacementMove | null {
