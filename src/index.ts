@@ -9,6 +9,8 @@ interface SolveResult {
 }
 
 interface DescribeResult {
+    countGivens: number;
+    countEmptyCells: number;
     isValid: boolean;
     isComplete: boolean;
     message: string,
@@ -29,6 +31,62 @@ function solve(boardInput: string | Board): SolveResult {
         isValid: isValid,
         board: sudoku.toArray(),
     };
+}
+
+function countSolutions(board: Board): number {
+    const copy = new SudokuSolver(board);
+    let count = 0;
+
+    function backtrack(startIdx: number = 0): void {
+        // Prevent hanging on boards with many solutions (only need to know if 0, 1, or >1)
+        if (count >= 2) return;
+
+        let emptyR = -1;
+        let emptyC = -1;
+        for (let i = startIdx; i < 81; i++) {
+            const r = Math.floor(i / 9);
+            const c = i % 9;
+            if (copy.isCellEmpty(r, c)) {
+                emptyR = r;
+                emptyC = c;
+                break;
+            }
+        }
+
+        if (emptyR === -1) {
+            count++;
+            return;
+        }
+
+        const possibles = copy.getPossibles(emptyR, emptyC);
+        for (const num of possibles) {
+            copy.setSquareValue(emptyR, emptyC, num);
+            backtrack(emptyR * 9 + emptyC + 1);
+            copy.setCellEmpty(emptyR, emptyC);
+        }
+    }
+
+    backtrack();
+    return count;
+}
+
+export function bruteForceSolve(board: Board): Board | null {
+    const copy = new SudokuSolver(board);
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (copy.isCellEmpty(r, c)) {
+                for (let num = 1; num <= 9; num++) {
+                    if (copy.getPossibles(r, c).includes(num)) {
+                        copy.setSquareValue(r, c, num);
+                        if (bruteForceSolve(copy.toArray())) return copy.toArray();
+                        copy.setCellEmpty(r, c);
+                    }
+                }
+                return null;
+            }
+        }
+    }
+    return copy.toArray();
 }
 
 function nextMove(boardInput: string | Board): MoveResult {
@@ -79,6 +137,8 @@ function describeBoard(boardInput: string | Board): DescribeResult {
 
     if (!initValidation.isValid) {
         return {
+            countGivens: sudoku.countPlaced(),
+            countEmptyCells: sudoku.countEmptyCells(),
             isValid: false,
             isComplete: false,
             message: initValidation.message,
@@ -88,20 +148,20 @@ function describeBoard(boardInput: string | Board): DescribeResult {
     }
 
     let result = {
+        countGivens: sudoku.countPlaced(),
+        countEmptyCells: sudoku.countEmptyCells(),
         isValid: true,
         isComplete: sudoku.isComplete(),
         message: '',
         difficulty: sudoku.difficulty(),
-        solutions: 0,
+        solutions: countSolutions(sudoku.toArray()),
     } as DescribeResult;
 
     if (result.isComplete) {
-        result.solutions = 1;
         result.message = 'Solvable with a single solution';
     } else {
         sudoku.solve();
         if (sudoku.isComplete()) {
-            result.solutions = 1;
             result.message = 'Unique Solution';
         } else {
             result.message = 'Invalid Puzzle (\"no unique solution\")';

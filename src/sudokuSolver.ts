@@ -160,6 +160,10 @@ export default class SudokuSolver {
     }
 
     setSquareValue(row: number, col: number, value: number): void {
+        if (value < 1 || value > 9) {
+            throw new Error(`Invalid value ${value} at row ${row}, col ${col}`);
+        }
+
         this.board[row][col] = value;
         this.possiblesGrid[row][col] = [];
         const ibox = this.boxIndex(row, col);
@@ -176,6 +180,31 @@ export default class SudokuSolver {
                 this.possiblesGrid[r][c] = this.possiblesGrid[r][c].filter((v) => v !== value);
             }
         }
+    }
+
+    setCellEmpty(row: number, col: number): void {
+        this.board[row][col] = 0;
+        for (let i = 0; i < 9; i++) {
+            this.possiblesGrid[row][i] = this.calcSquarePossibles(row, i);
+            this.possiblesGrid[i][col] = this.calcSquarePossibles(i, col);
+        }
+
+        const ibox = this.boxIndex(row, col);
+        const startRow = Math.floor(ibox / 3) * 3;
+        const startCol = (ibox % 3) * 3;
+        for (let r = startRow; r < startRow + 3; r++) {
+            for (let c = startCol; c < startCol + 3; c++) {
+                this.possiblesGrid[r][c] = this.calcSquarePossibles(r, c);
+            }
+        }
+    }
+
+    getValue(row: number, col: number): number {
+        return this.board[row][col];
+    }
+
+    isCellEmpty(row: number, col: number): boolean {
+        return this.getValue(row, col) === 0;
     }
 
     applyElimination(move: EliminationMove): void {

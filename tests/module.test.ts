@@ -16,6 +16,10 @@ const SOLVABLE_BOARD =
 const HARD_BOARD =
     "070300002500001900004060000900007500008010020060200003000004800000070010000800007";
 
+// A valid puzzle with exactly two solutions
+const MULTI_SOLUTION_BOARD =
+    "074236058638591742025487036316754289742918563589362417867125394253649871491873625";
+
 // A board with fewer than 17 givens (invalid per Sudoku rules)
 const SPARSE_BOARD =
     "000000010000000200030000405000000000000000000000006000000070000602000080000340000";
@@ -144,11 +148,19 @@ describe("Node module API", () => {
             expect(result.message).toBe("Unique Solution");
         });
 
-        it("returns solutions 0 for a board the solver cannot complete", () => {
+        it("returns solutions 1 for a valid board the logic solver cannot complete", () => {
             const result = Sudoku.describe(HARD_BOARD);
             expect(result.isValid).toBe(true);
             expect(result.isComplete).toBe(false);
-            expect(result.solutions).toBe(0);
+            expect(result.solutions).toBe(1);
+            expect(result.message).toBe('Invalid Puzzle ("no unique solution")');
+        });
+
+        it("returns solutions 2 for a puzzle with multiple valid solutions", () => {
+            const result = Sudoku.describe(MULTI_SOLUTION_BOARD);
+            expect(result.isValid).toBe(true);
+            expect(result.isComplete).toBe(false);
+            expect(result.solutions).toBe(2);
             expect(result.message).toBe('Invalid Puzzle ("no unique solution")');
         });
 
