@@ -20,7 +20,8 @@ export type Algorithm =
     | "Naked Quad"
     | "Hidden Pair"
     | "Hidden Triple"
-    | "Hidden Quad";
+    | "Hidden Quad"
+    | "Almost Locked Candidates";
 
 export type DifficultyLevel = "Easy" | "Medium" | "Hard" | "Diabolical" | "Impossible";
 
@@ -46,7 +47,8 @@ type SearchPhase =
     | "XYWing"
     | "WWing"
     | "Swordfish"
-    | "NakedHiddenQuads";
+    | "NakedHiddenQuads"
+    | "AlmostLockedCandidates";
 
 const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -126,6 +128,7 @@ export default class SudokuSolver {
         "WWing",
         "Swordfish",
         "NakedHiddenQuads",
+        "AlmostLockedCandidates",
     ];
 
     private board: Board;
@@ -500,6 +503,8 @@ export default class SudokuSolver {
                 return this.findHiddenSubsetElimination();
             case "NakedHiddenQuads":
                 return this.findNakedHiddenQuadsElimination();
+            case "AlmostLockedCandidates":
+                return this.findAlmostLockedCandidates();
             default:
                 return null;
         }
@@ -1159,6 +1164,207 @@ export default class SudokuSolver {
             if (moveHidden) return moveHidden;
         }
         return null;
+    }
+
+    /**
+     * Enumerate all ALS of exactly `size` cells within an arbitrary cell list. Mirrors
+     * `enumerateALS` but scoped to the provided cells instead of a full house — used by
+     * `findAlmostLockedCandidates` which needs ALS restricted to `line \ intersection` or
+     * `box \ intersection`.
+     */
+    private enumerateALSInCellSet(
+        cells: ReadonlyArray<{ row: number; col: number }>,
+        size: number
+    ): AlmostLockedSet[] {
+        const empties = cells.filter(
+            ({ row, col }) => this.board[row][col] === 0 && this.possiblesGrid[row][col].length > 0
+        );
+        if (empties.length < size) return [];
+
+        const result: AlmostLockedSet[] = [];
+        const indices: number[] = [];
+        const digits = new Set<number>();
+
+        const dfs = (start: number): void => {
+            if (indices.length === size) {
+                if (digits.size === size + 1) {
+                    result.push({
+                        cells: indices.map((i) => empties[i]!),
+                        digits: new Set(digits),
+                    });
+                }
+                return;
+            }
+            // Prune: digit count already exceeds ALS threshold.
+            if (digits.size > size + 1) return;
+            for (let i = start; i < empties.length; i++) {
+                const { row, col } = empties[i]!;
+                const added: number[] = [];
+                for (const d of this.possiblesGrid[row][col]) {
+                    if (!digits.has(d)) {
+                        digits.add(d);
+                        added.push(d);
+                    }
+                }
+                indices.push(i);
+                dfs(i + 1);
+                indices.pop();
+                for (const d of added) digits.delete(d);
+            }
+        };
+
+        dfs(0);
+        return result;
+    }
+
+    /**
+     * Almost Locked Candidates (line-box): for every (line, box) with a 3-cell intersection `I`,
+     * find an ALS in `line \ I` and an ALS in `box \ I` sharing the same digit set `S`. If the
+     * other cells in the line lack every digit of `S`, eliminate `S` from the other cells in the
+     * box; and symmetrically the reverse direction.
+     *
+     * Reasoning: `box-ALS` cells have candidates only in `S`, so they must be filled with the `n`
+     * of the `n+1` `S`-digits. That leaves exactly one `S`-digit for the rest of the box. If the
+     * line constraint forces at least one `S`-digit into `I`, that single remaining `S`-digit is
+     * in `I`, so every other `box \ I \ box-ALS` cell cannot contain any `S`-digit.
+     *
+     * Supports ALS sizes `n = 1` (bivalue cells, Sudopedia's first example) and `n = 2` (second).
+     */
+    private findAlmostLockedCandidates(): EliminationMove | null {
+        for (const byRow of [true, false] as const) {
+            for (let lineIdx = 0; lineIdx < 9; lineIdx++) {
+                const band = Math.floor(lineIdx / 3);
+                for (let off = 0; off < 3; off++) {
+                    const boxIdx = byRow ? band * 3 + off : off * 3 + band;
+
+                    const lineOutside: { row: number; col: number }[] = [];
+                    for (let k = 0; k < 9; k++) {
+                        const cell = byRow ? { row: lineIdx, col: k } : { row: k, col: lineIdx };
+                        if (this.boxIndex(cell.row, cell.col) !== boxIdx) {
+                            lineOutside.push(cell);
+                        }
+                    }
+                    const boxOutside: { row: number; col: number }[] = [];
+                    for (let i = 0; i < 9; i++) {
+                        const cell = this.boxToPuzzle(boxIdx, i);
+                        const inLine = byRow ? cell.row === lineIdx : cell.col === lineIdx;
+                        if (!inLine) boxOutside.push(cell);
+                    }
+
+                    for (let n = 1; n <= 2; n++) {
+                        const move = this.tryAlmostLockedCandidates(
+                            byRow, lineIdx, boxIdx, lineOutside, boxOutside, n
+                        );
+                        if (move) return move;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private tryAlmostLockedCandidates(
+        byRow: boolean,
+        lineIdx: number,
+        boxIdx: number,
+        lineOutside: { row: number; col: number }[],
+        boxOutside: { row: number; col: number }[],
+        n: number
+    ): EliminationMove | null {
+        const lineALSes = this.enumerateALSInCellSet(lineOutside, n);
+        if (lineALSes.length === 0) return null;
+        const boxALSes = this.enumerateALSInCellSet(boxOutside, n);
+        if (boxALSes.length === 0) return null;
+
+        for (const lineALS of lineALSes) {
+            const lineALSKeys = new Set(lineALS.cells.map(({ row, col }) => row * 9 + col));
+            const lineRest = lineOutside.filter(({ row, col }) => !lineALSKeys.has(row * 9 + col));
+
+            for (const boxALS of boxALSes) {
+                if (boxALS.digits.size !== lineALS.digits.size) continue;
+                let sameS = true;
+                for (const d of lineALS.digits) {
+                    if (!boxALS.digits.has(d)) { sameS = false; break; }
+                }
+                if (!sameS) continue;
+
+                const S = lineALS.digits;
+                const boxALSKeys = new Set(boxALS.cells.map(({ row, col }) => row * 9 + col));
+                const boxRest = boxOutside.filter(({ row, col }) => !boxALSKeys.has(row * 9 + col));
+
+                // Direction A: line side is the "fixed" side; eliminate from box side.
+                const lineRestHasS = lineRest.some(({ row, col }) =>
+                    this.board[row][col] === 0 && this.possiblesGrid[row][col].some((d) => S.has(d))
+                );
+                if (!lineRestHasS) {
+                    const eliminations = this.alcEliminations(boxRest, S);
+                    if (eliminations.length > 0) {
+                        return this.finalizeElimination(
+                            eliminations,
+                            "Almost Locked Candidates",
+                            this.almostLockedCandidatesReasoning(lineALS, boxALS, byRow, lineIdx, boxIdx, "line")
+                        );
+                    }
+                }
+
+                // Direction B: box side is the "fixed" side; eliminate from line side.
+                const boxRestHasS = boxRest.some(({ row, col }) =>
+                    this.board[row][col] === 0 && this.possiblesGrid[row][col].some((d) => S.has(d))
+                );
+                if (!boxRestHasS) {
+                    const eliminations = this.alcEliminations(lineRest, S);
+                    if (eliminations.length > 0) {
+                        return this.finalizeElimination(
+                            eliminations,
+                            "Almost Locked Candidates",
+                            this.almostLockedCandidatesReasoning(lineALS, boxALS, byRow, lineIdx, boxIdx, "box")
+                        );
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private alcEliminations(
+        targets: ReadonlyArray<{ row: number; col: number }>,
+        S: ReadonlySet<number>
+    ): Array<{ row: number; col: number; value: number }> {
+        const out: Array<{ row: number; col: number; value: number }> = [];
+        for (const { row, col } of targets) {
+            if (this.board[row][col] !== 0) continue;
+            for (const d of this.possiblesGrid[row][col]) {
+                if (S.has(d)) out.push({ row, col, value: d });
+            }
+        }
+        return out;
+    }
+
+    private almostLockedCandidatesReasoning(
+        lineALS: AlmostLockedSet,
+        boxALS: AlmostLockedSet,
+        byRow: boolean,
+        lineIdx: number,
+        boxIdx: number,
+        fixedSide: "line" | "box"
+    ): string {
+        const digits = [...lineALS.digits].sort((a, b) => a - b).join("/");
+        const lineCells = lineALS.cells.map(({ row, col }) => `r${row + 1}c${col + 1}`).join(", ");
+        const boxCells = boxALS.cells.map(({ row, col }) => `r${row + 1}c${col + 1}`).join(", ");
+        const linePhrase = byRow ? `row ${lineIdx + 1}` : `column ${lineIdx + 1}`;
+        const boxPhrase = `box ${boxIdx + 1}`;
+        const fixedPhrase = fixedSide === "line" ? linePhrase : boxPhrase;
+        const targetPhrase = fixedSide === "line" ? boxPhrase : linePhrase;
+        const fixedALSLabel = fixedSide === "line" ? `line-ALS (${lineCells})` : `box-ALS (${boxCells})`;
+        const targetALSLabel = fixedSide === "line" ? `box-ALS (${boxCells})` : `line-ALS (${lineCells})`;
+        return (
+            `Almost Locked Candidates: line-ALS (${lineCells}) in ${linePhrase} and ` +
+            `box-ALS (${boxCells}) in ${boxPhrase} share digits ${digits}. ` +
+            `All cells in ${fixedPhrase} outside the intersection and ${fixedALSLabel} have no ${digits} candidates, ` +
+            `so ${digits} must appear in the intersection or ${fixedALSLabel}, ` +
+            `forcing ${digits} to appear only in the intersection or ${targetALSLabel} within ${targetPhrase} — ` +
+            `eliminate ${digits} from the remaining cells in ${targetPhrase}.`
+        );
     }
 
     /**
