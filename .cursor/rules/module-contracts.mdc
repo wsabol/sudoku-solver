@@ -39,7 +39,7 @@ Move type contract:
 - `PlacementMove`: `{ type: "placement"; row; col; value; algorithm; message; reasoning }`
 - `EliminationMove`: `{ type: "elimination"; eliminations: Array<{ row; col; value }>; algorithm; message; reasoning }`
 - Always narrow on `move.type` before accessing placement-specific fields.
-- `Algorithm = "Last Digit" | "Full House" | "Naked Single" | "Hidden Single" | "Pointing Pair" | "Pointing Triple" | "Box/Line Reduction" | "X-Wing" | "Swordfish" | "Naked Pair" | "Naked Triple" | "Naked Quad" | "Hidden Pair" | "Hidden Triple" | "Hidden Quad"` (specific technique on the move; phase order in `sudokuSolver.ts` `SEARCH_PHASES`, not exported; pointing label follows box-line candidate count 2 vs 3)
+- `Algorithm = "Last Digit" | "Full House" | "Naked Single" | "Hidden Single" | "Pointing Pair" | "Pointing Triple" | "Box/Line Reduction" | "X-Wing" | "XY-Wing" | "W-Wing" | "XYZ-Wing" | "Swordfish" | "Naked Pair" | "Naked Triple" | "Naked Quad" | "Hidden Pair" | "Hidden Triple" | "Hidden Quad" | "Almost Locked Candidates"` (specific technique on the move; phase order in `sudokuSolver.ts` `SEARCH_PHASES`, not exported; pointing label follows box-line candidate count 2 vs 3)
 
 Validation reason taxonomy:
 - `duplicate_in_row`

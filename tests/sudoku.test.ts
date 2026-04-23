@@ -61,7 +61,7 @@ const solveAnswers = [
     {
         title: 'Diabolical',
         input: '700409000000075300050100070640000010100080004090000036020004060007950000000708005',
-        output: '700409000000875300050100070643097010170683004090041736020314067407950003000708005',
+        output: '700409000000875340054100079643097018170683004090041736020314067407950103000708405',
         describe: {
             isValid: true,
             isComplete: false,
@@ -133,7 +133,7 @@ const solveAnswers = [
     {
         title: 'Intersection Removal',
         input: '000921003009000060000000500080403006007000800500700040003000000020000700800195000',
-        output: '700921483009508067008000509080453076007010805500780341603000000020000700874195632',
+        output: '700921483009508067008007509080453076007010805500780341603070000020000700874195632',
         describe: {
             isValid: true,
             isComplete: false,
@@ -1662,6 +1662,71 @@ describe("SudokuSolver", () => {
                 expect(move.message).toBe(move.message); // message is set
                 expect(move.message).toContain("XY-Wing");
                 expect(move.reasoning.length).toBeGreaterThan(0);
+            }
+        });
+    });
+
+    describe("findXYZWing()", () => {
+        // The 'Diabolical' fixture's solve path requires an XYZ-Wing elimination:
+        // hinge r2c9 {1/2/9}, pincers r1c9 {1/2} and r2c1 {2/9} → eliminate 2 from r2c8.
+        const XYZ_WING_FIXTURE =
+            "700409000000075300050100070640000010100080004090000036020004060007950000000708005";
+
+        it("finds an XYZ-Wing elimination on the fixture solve path", () => {
+            const s = new SudokuSolver(XYZ_WING_FIXTURE);
+            let saw = false;
+            for (let i = 0; i < 400; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "XYZ-Wing") {
+                    expect(m.eliminations.length).toBeGreaterThan(0);
+                    expect(m.reasoning).toMatch(
+                        /XYZ-Wing: hinge r\dc\d \(\d\/\d\/\d\) with pincers r\dc\d \(\d\/\d\) and r\dc\d \(\d\/\d\)/,
+                    );
+                    expect(m.reasoning).toContain("One of the three cells must contain");
+                    expect(m.reasoning).toContain("cannot appear in any cell that sees all three");
+                    saw = true;
+                    break;
+                }
+                s.applyMove(m);
+            }
+            expect(saw).toBe(true);
+        });
+
+        it("returns an elimination move with non-empty eliminations array", () => {
+            const s = new SudokuSolver(XYZ_WING_FIXTURE);
+            let move = s.getNextMove();
+            while (move !== null && !(move.type === "elimination" && move.algorithm === "XYZ-Wing")) {
+                s.applyMove(move);
+                move = s.getNextMove();
+            }
+            expect(move).not.toBeNull();
+            if (move !== null && move.type === "elimination") {
+                expect(move.algorithm).toBe("XYZ-Wing");
+                expect(move.eliminations.length).toBeGreaterThan(0);
+                expect(move.message).toContain("XYZ-Wing");
+                expect(move.reasoning.length).toBeGreaterThan(0);
+            }
+        });
+
+        it("applyElimination removes XYZ-Wing candidates from possiblesGrid", () => {
+            const s = new SudokuSolver(XYZ_WING_FIXTURE);
+            let xyzMove = null;
+            for (let i = 0; i < 400; i++) {
+                const m = s.getNextMove();
+                if (!m) break;
+                if (m.type === "elimination" && m.algorithm === "XYZ-Wing") {
+                    xyzMove = m;
+                    break;
+                }
+                s.applyMove(m);
+            }
+            expect(xyzMove).not.toBeNull();
+            if (xyzMove !== null && xyzMove.type === "elimination") {
+                s.applyElimination(xyzMove);
+                for (const { row, col, value } of xyzMove.eliminations) {
+                    expect(s.getPossibles(row, col)).not.toContain(value);
+                }
             }
         });
     });

@@ -14,6 +14,7 @@ export type Algorithm =
     | "X-Wing"
     | "XY-Wing"
     | "W-Wing"
+    | "XYZ-Wing"
     | "Swordfish"
     | "Naked Pair"
     | "Naked Triple"
@@ -48,6 +49,7 @@ type SearchPhase =
     | "WWing"
     | "Swordfish"
     | "NakedHiddenQuads"
+    | "XYZWing"
     | "AlmostLockedCandidates";
 
 const COMPLETE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -126,8 +128,9 @@ export default class SudokuSolver {
         "Fish",
         "XYWing",
         "WWing",
-        "Swordfish",
         "NakedHiddenQuads",
+        "Swordfish",
+        "XYZWing",
         "AlmostLockedCandidates",
     ];
 
@@ -503,6 +506,8 @@ export default class SudokuSolver {
                 return this.findHiddenSubsetElimination();
             case "NakedHiddenQuads":
                 return this.findNakedHiddenQuadsElimination();
+            case "XYZWing":
+                return this.findXYZWing();
             case "AlmostLockedCandidates":
                 return this.findAlmostLockedCandidates();
             default:
@@ -963,6 +968,85 @@ export default class SudokuSolver {
                                 `eliminating ${elimDigit} from any cell seen by both.`;
                             return this.finalizeElimination(eliminations, "W-Wing", reasoning);
                         }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * XYZ-Wing: a hinge cell with candidates {X, Y, Z} and two bi-value pincers {X, Z} and {Y, Z},
+     * both visible to the hinge. One of the three cells must contain Z, so Z can be eliminated
+     * from any cell that sees all three (hinge and both pincers).
+     */
+    private findXYZWing(): EliminationMove | null {
+        const hinges: Array<{ row: number; col: number; candidates: number[] }> = [];
+        for (let row = 0; row < 9; row++) {
+            for (let col = 0; col < 9; col++) {
+                if (this.board[row][col] !== 0) continue;
+                const p = this.possiblesGrid[row][col];
+                if (p.length === 3) {
+                    hinges.push({ row, col, candidates: [...p] });
+                }
+            }
+        }
+        if (hinges.length === 0) return null;
+
+        const bivalue = this.getBivalueCells();
+
+        for (const hinge of hinges) {
+            const hingeSet = new Set(hinge.candidates);
+            const wings = bivalue.filter((c) => {
+                if (c.row === hinge.row && c.col === hinge.col) return false;
+                if (!this.cellsSeeEachOther(hinge.row, hinge.col, c.row, c.col)) return false;
+                return hingeSet.has(c.a) && hingeSet.has(c.b);
+            });
+
+            for (let i = 0; i < wings.length; i++) {
+                for (let j = i + 1; j < wings.length; j++) {
+                    const p1 = wings[i]!;
+                    const p2 = wings[j]!;
+
+                    // Pincers must share exactly one digit (Z) and their union with the hinge's
+                    // third digit must equal the hinge's candidate set.
+                    const shared: number[] = [];
+                    if (p1.a === p2.a || p1.a === p2.b) shared.push(p1.a);
+                    if (p1.b === p2.a || p1.b === p2.b) shared.push(p1.b);
+                    if (shared.length !== 1) continue;
+                    const Z = shared[0]!;
+                    const X = p1.a === Z ? p1.b : p1.a;
+                    const Y = p2.a === Z ? p2.b : p2.a;
+                    if (X === Y) continue;
+                    if (!hingeSet.has(X) || !hingeSet.has(Y) || !hingeSet.has(Z)) continue;
+
+                    const eliminations: Array<{ row: number; col: number; value: number }> = [];
+                    for (let row = 0; row < 9; row++) {
+                        for (let col = 0; col < 9; col++) {
+                            if (row === hinge.row && col === hinge.col) continue;
+                            if (row === p1.row && col === p1.col) continue;
+                            if (row === p2.row && col === p2.col) continue;
+                            if (this.board[row][col] !== 0) continue;
+                            if (!this.possiblesGrid[row][col].includes(Z)) continue;
+                            if (
+                                this.cellsSeeEachOther(row, col, hinge.row, hinge.col) &&
+                                this.cellsSeeEachOther(row, col, p1.row, p1.col) &&
+                                this.cellsSeeEachOther(row, col, p2.row, p2.col)
+                            ) {
+                                eliminations.push({ row, col, value: Z });
+                            }
+                        }
+                    }
+
+                    if (eliminations.length > 0) {
+                        const hingeDigits = [...hinge.candidates].sort((a, b) => a - b).join("/");
+                        const reasoning =
+                            `XYZ-Wing: hinge r${hinge.row + 1}c${hinge.col + 1} (${hingeDigits}) ` +
+                            `with pincers r${p1.row + 1}c${p1.col + 1} (${X}/${Z}) and ` +
+                            `r${p2.row + 1}c${p2.col + 1} (${Y}/${Z}). ` +
+                            `One of the three cells must contain ${Z}, so ${Z} cannot appear in any cell that sees all three.`;
+                        return this.finalizeElimination(eliminations, "XYZ-Wing", reasoning);
                     }
                 }
             }
